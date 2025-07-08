@@ -15,14 +15,16 @@ This plugin extends CounterStrikeSharp to enable full(mostly) HLstatsX:CE suppor
 ## ⚙️ Config
 # Easy server setup—just two config changes
 - CS2 x-server.cfg:
-`log on
-logaddress_add_http "http://127.0.0.1:27500"`
+  
+`log on`<br>
+`logaddress_add_http "http://127.0.0.1:27500"`<br>
 
 -  CounterStrikeSharp\Configs\Plugins\HLstatsZ\HLstatsZ.json:
-`{
-  "Log_Address": "127.0.0.1",
-  "Log_Port": 27500
-}`
+  
+`{`<br>
+  `"Log_Address": "127.0.0.1",`<br>
+  `"Log_Port": 27500`<br>
+`}`<br>
 
 * logaddress_add_http & Log_Address: IP address of the server where your HLstatsX daemon is running
 
