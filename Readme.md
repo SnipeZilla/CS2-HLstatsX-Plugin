@@ -37,7 +37,7 @@ This plugin extends CounterStrikeSharp to enable full(mostly) HLstatsX:CE suppor
 * 🐣 Early-stage plugin!
 * not everything work.
 * But the core idea is here. I couldn't make everything I wanted. (My first css plugin!)
-* The menu has horrible.
+* The menu is horrible.
 * Teams color are done by hlxce 2025 (for now, until i figure out how to do it inside the plugin)
 * Needs community to improve this plugin for the love of HlstatsX!
 
