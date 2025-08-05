@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using Microsoft.Extensions.Logging;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
@@ -8,7 +9,6 @@ using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Menu;
 using CounterStrikeSharp.API.Modules.Entities;
-using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Modules.Events;
 using CounterStrikeSharp.API.Modules.Cvars;
 using System.Net.Sockets;
@@ -29,8 +29,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     public static HLstatsZ? Instance;
     public HLstatsZConfig Config { get; set; } = new();
 
+    private string? _lastPsayHash;
+
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "0.1.0";
+    public override string ModuleVersion => "0.2.0";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -95,15 +97,27 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         int.TryParse(arg, out var userid);
         var message = command.ArgByIndex(command.ArgCount - 1);
         var target  = FindPlayerByUserId(userid);
+        var hash = $"{target?.UserId}:{message}";
+        if (_lastPsayHash == hash) {
+           Instance?.Logger.LogInformation("Duplicate message: {hash}", hash);
+           return;
+        }
+        _lastPsayHash = hash;
 
-        DispatchHLXEvent("psay", target, message);
+        Server.NextFrame(() =>
+        {
+            DispatchHLXEvent("psay", target, message);
+        });
     }
 
     [ConsoleCommand("hlx_sm_csay")]
     public void OnHlxSmCsayCommand(CCSPlayerController? _, CommandInfo command)
     {
         var message = command.ArgByIndex(1);
-        DispatchHLXEvent("csay", null, message);
+        Server.NextFrame(() =>
+        {
+            DispatchHLXEvent("csay", null, message);
+        });
     }
 
     [ConsoleCommand("hlx_sm_hint")]
@@ -114,8 +128,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         var message = command.ArgByIndex(command.ArgCount - 1);
         var target  = FindPlayerByUserId(userid);
         if (target == null) return;
-
-        DispatchHLXEvent("hint", target, message);
+        Server.NextFrame(() =>
+        {
+            DispatchHLXEvent("hint", target, message);
+        });
     }
 
     [ConsoleCommand("hlx_sm_msay")]
@@ -126,8 +142,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         var message = command.ArgByIndex(command.ArgCount - 1);
         var target  = FindPlayerByUserId(userid);
         if (target == null) return;
-
-        DispatchHLXEvent("msay", target, message);
+        Server.NextFrame(() =>
+        {
+            DispatchHLXEvent("msay", target, message);
+        });
     }
 
     // ------------------ Core Logic ------------------
@@ -146,7 +164,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             _ => "UNASSIGNED"
         };
         var hostPort = ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 27015;
-        Console.WriteLine($"{hostPort}");
         var logLine = $"L {DateTime.Now:MM/dd/yyyy - HH:mm:ss}: \"{name}<{userid}><[U:1:{steamid}]><{team}>\" say \"{Message}\""; // / Extra log for hidden msg
         try
         {
@@ -169,7 +186,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         {
             case "psay":
                 if (player != null) SendPrivateChat(player, message);
-                else SendChatToAll(message);
+                else Instance?.Logger.LogInformation($"Player is null from message: {message}");
                 break;
             case "csay":
                 BroadcastCenterMessage(message);
@@ -177,11 +194,15 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             case "msay":
                 if (player != null) openChatMenu(Instance, player, message);
                 break;
+            case "say":
+                SendChatToAll(message);
+                break;
             case "hint":
                 if (player != null) ShowHintMessage(player, message);
                 break;
             default:
-                player?.PrintToChat($"Unknown HLX type: {type}");
+                if (player != null) player.PrintToChat($"Unknown HLX type: {type}");
+                else Instance?.Logger.LogInformation($"Unknown HLX type: {type}"); 
                 break;
         }
     }
@@ -272,7 +293,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
             menu.Open(player);
         }
-        // will do bett
         private static void OnTopPlayersSelected(CCSPlayerController player) => Instance?.SendLog(player, "top10");
         private static void OnWeaponStatsSelected(CCSPlayerController player) => Instance?.SendLog(player, "rank");
         private static void OnAccuracySelected(CCSPlayerController player) => Instance?.SendLog(player,  "accuracy");
