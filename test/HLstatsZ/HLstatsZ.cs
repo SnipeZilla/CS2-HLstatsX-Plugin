@@ -96,12 +96,12 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     {
         var arg = command.ArgByIndex(1);
         int.TryParse(arg, out var userid);
-        Logger.LogInformation($"{command} with id={userid}");
+        // Logger.LogInformation($"{command} with id={userid}");
         var message = command.ArgByIndex(command.ArgCount - 1);
         var target  = FindPlayerByUserId(userid);
         var hash = $"{target?.UserId}:{message}";
         if (_lastPsayHash == hash) {
-           Logger.LogInformation("Duplicate message: {hash}", hash);
+           // Logger.LogInformation("Duplicate message: {hash}", hash);
            return;
         }
         _lastPsayHash = hash;
@@ -188,7 +188,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         {
             case "psay":
                 if (player != null) SendPrivateChat(player, message);
-                else Logger.LogInformation($"Player is null from message: {Message}");
+                // else Logger.LogInformation($"Player is null from message: {Message}");
                 break;
             case "csay":
                 BroadcastCenterMessage(message);
@@ -204,7 +204,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
                 break;
             default:
                 if (player != null) player.PrintToChat($"Unknown HLX type: {type}");
-                else Logger.LogInformation($"Unknown HLX type: {type}"); 
+                // else Logger.LogInformation($"Unknown HLX type: {type}"); 
                 break;
         }
     }
