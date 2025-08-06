@@ -24,7 +24,7 @@ This plugin extends CounterStrikeSharp to enable full(mostly) HLstatsX:CE suppor
 `{`<br>
   `"Log_Address": "127.0.0.1",`<br>
   `"Log_Port": 27500,`<br>
-  `"BroadcastAll": 0,'<br>
+  `"BroadcastAll": 0,`<br>
 `}`<br>
 
 * logaddress_add_http & Log_Address: IP address of the server where your HLstatsX daemon is running
