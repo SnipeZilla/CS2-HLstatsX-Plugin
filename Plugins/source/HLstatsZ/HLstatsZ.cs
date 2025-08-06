@@ -112,12 +112,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             return;
         }
 
-        // Broadcast to user
-        var userIds = arg.Split(',').Select(idStr => int.TryParse(idStr, out var id) ? id : (int?)null)
-                                    .Where(id => id.HasValue)
-                                    .Select(id => id.Value)
-                                    .ToList();
+        // users?
+        var userIds = new List<int>();
+        foreach (var idStr in arg.Split(','))  {
+            if (int.TryParse(idStr, out var id)) userIds.Add(id);
+        }
 
+        // Broadcast to user
         foreach (var userid in userIds) {
             var target = FindPlayerByUserId(userid);
             if (target == null || !target.IsValid) continue;
