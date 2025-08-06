@@ -204,23 +204,23 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         switch (type)
         {
             case "psay":
-                if (player != null) SendPrivateChat(player, message);
+                if (player != null || !player.IsValid) SendPrivateChat(player, message);
                 else Instance?.Logger.LogInformation($"Player null from message: {message}");
                 break;
             case "csay":
                 BroadcastCenterMessage(message);
                 break;
             case "msay":
-                if (player != null) openChatMenu(Instance, player, message);
+                if (player != null || !player.IsValid) openChatMenu(Instance, player, message);
                 break;
             case "say":
                 SendChatToAll(message);
                 break;
             case "hint":
-                if (player != null) ShowHintMessage(player, message);
+                if (player != null || !player.IsValid) ShowHintMessage(player, message);
                 break;
             default:
-                if (player != null) player.PrintToChat($"Unknown HLX type: {type}");
+                if (player != null || !player.IsValid) player.PrintToChat($"Unknown HLX type: {type}");
                 else Instance?.Logger.LogInformation($"Unknown HLX type: {type}"); 
                 break;
         }
