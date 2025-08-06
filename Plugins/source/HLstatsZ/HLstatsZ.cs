@@ -21,6 +21,7 @@ public class HLstatsZConfig : IBasePluginConfig
 {
     [JsonPropertyName("Log_Address")] public string Log_Address { get; set; } = "127.0.0.1";
     [JsonPropertyName("Log_Port")] public int Log_Port { get; set; } = 27500;
+    [JsonPropertyName("BroadcastAll")] public int BroadcastAll { get; set; } = 0;
     public int Version { get; set; } = 1;
 }
 
@@ -32,7 +33,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "0.2.0";
+    public override string ModuleVersion => "0.3.0";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -103,10 +104,21 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
            return;
         }
         _lastPsayHash = hash;
-
+        int? optionalArg = null;
+        if (command.ArgCount > 2) {
+            var arg2 = command.ArgByIndex(2);
+            if (int.TryParse(arg2, out var parsed))
+            {
+                optionalArg = parsed;
+            }
+        }
         Server.NextFrame(() =>
         {
-            DispatchHLXEvent("psay", target, message);
+            if (optionalArg == 1 && Config.BroadcastAll == 1) {
+                DispatchHLXEvent("say", null, message);
+            } else {
+                DispatchHLXEvent("psay", target, message);
+            }
         });
     }
 
