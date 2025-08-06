@@ -193,7 +193,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[HLstatsZ] UDP log send failed: {ex.Message}");
+            Instance?.Logger.LogInformation($"[HLstatsZ] UDP log send failed: {ex.Message}");
         }
     }
 
