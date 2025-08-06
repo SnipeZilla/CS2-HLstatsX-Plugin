@@ -81,7 +81,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             }
             else
             {
-                Server.NextFrame(() => DispatchHLXEvent("psay", player, message));
+                DispatchHLXEvent("psay", player, message);
             }
             return HookResult.Handled;
         }
@@ -109,7 +109,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
                 return;
             }
             _lastPsayHash = hash;
-            Server.NextFrame(() => DispatchHLXEvent("say", null, message));
+            DispatchHLXEvent("say", null, message);
             return;
         }
 
@@ -126,7 +126,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             var target = FindPlayerByUserId(userid);
             if (target == null || !target.IsValid) continue;
 
-            var hash = $"{target.UserId}:{message}";
+            var hash = $"{userid}:{message}";
             if (_lastPsayHash == hash)
             {
                 Instance?.Logger.LogInformation("Duplicate message to userid: {hash}", hash);
@@ -134,7 +134,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             }
 
             _lastPsayHash = hash;
-            Server.NextFrame(() => DispatchHLXEvent("psay", target, message));
+            DispatchHLXEvent("psay", target, message);
         }
     }
 
@@ -142,7 +142,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     public void OnHlxSmCsayCommand(CCSPlayerController? _, CommandInfo command)
     {
         var message = command.ArgByIndex(1);
-        Server.NextFrame(() => DispatchHLXEvent("csay", null, message));
+        DispatchHLXEvent("csay", null, message);
     }
 
     [ConsoleCommand("hlx_sm_hint")]
@@ -152,8 +152,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
         var message = command.ArgByIndex(command.ArgCount - 1);
         var target  = FindPlayerByUserId(userid);
-        if (target == null) return;
-        Server.NextFrame(() => DispatchHLXEvent("hint", target, message));
+        if (target == null || !target.IsValid) return;
+        DispatchHLXEvent("hint", target, message);
     }
 
     [ConsoleCommand("hlx_sm_msay")]
@@ -163,8 +163,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
         var message = command.ArgByIndex(command.ArgCount - 1);
         var target  = FindPlayerByUserId(userid);
-        if (target == null) return;
-        Server.NextFrame(() => DispatchHLXEvent("msay", target, message));
+        if (target == null || !target.IsValid) return;
+        DispatchHLXEvent("msay", target, message);
     }
 
     // ------------------ Core Logic ------------------
@@ -205,7 +205,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         {
             case "psay":
                 if (player != null) SendPrivateChat(player, message);
-                else Instance?.Logger.LogInformation($"Player is null from message: {message}");
+                else Instance?.Logger.LogInformation($"Player null from message: {message}");
                 break;
             case "csay":
                 BroadcastCenterMessage(message);
