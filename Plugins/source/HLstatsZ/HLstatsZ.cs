@@ -33,7 +33,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "0.4.0";
+    public override string ModuleVersion => "0.5.0";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -100,26 +100,29 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         var message = command.ArgByIndex(command.ArgCount - 1);
 
         // Broadcast to all
-        if (Config.BroadcastAll == 1) {
+        if (Config.BroadcastAll == 1)
+        {
             var hash = $"ALL:{message}";
-            if (_lastPsayHash == hash) {
+            if (_lastPsayHash == hash)
+            {
                 Instance?.Logger.LogInformation("Duplicate global message: {hash}", hash);
                 return;
             }
-
             _lastPsayHash = hash;
-            Server.NextFrame(() => DispatchHLXEvent("say", null, message));
+            DispatchHLXEvent("say", null, message);
             return;
         }
 
         // users?
         var userIds = new List<int>();
-        foreach (var idStr in arg.Split(','))  {
+        foreach (var idStr in arg.Split(','))
+        {
             if (int.TryParse(idStr, out var id)) userIds.Add(id);
         }
 
         // Broadcast to user
-        foreach (var userid in userIds) {
+        foreach (var userid in userIds)
+        {
             var target = FindPlayerByUserId(userid);
             if (target == null || !target.IsValid) continue;
 
@@ -131,7 +134,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             }
 
             _lastPsayHash = hash;
-            Server.NextFrame(() => DispatchHLXEvent("psay", target, message));
+            DispatchHLXEvent("psay", target, message);
         }
     }
 
@@ -139,10 +142,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     public void OnHlxSmCsayCommand(CCSPlayerController? _, CommandInfo command)
     {
         var message = command.ArgByIndex(1);
-        Server.NextFrame(() =>
-        {
-            DispatchHLXEvent("csay", null, message);
-        });
+        DispatchHLXEvent("csay", null, message);
     }
 
     [ConsoleCommand("hlx_sm_hint")]
@@ -153,10 +153,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         var message = command.ArgByIndex(command.ArgCount - 1);
         var target  = FindPlayerByUserId(userid);
         if (target == null) return;
-        Server.NextFrame(() =>
-        {
-            DispatchHLXEvent("hint", target, message);
-        });
+        DispatchHLXEvent("hint", target, message);
     }
 
     [ConsoleCommand("hlx_sm_msay")]
@@ -167,10 +164,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         var message = command.ArgByIndex(command.ArgCount - 1);
         var target  = FindPlayerByUserId(userid);
         if (target == null) return;
-        Server.NextFrame(() =>
-        {
-            DispatchHLXEvent("msay", target, message);
-        });
+        DispatchHLXEvent("msay", target, message);
     }
 
     // ------------------ Core Logic ------------------
