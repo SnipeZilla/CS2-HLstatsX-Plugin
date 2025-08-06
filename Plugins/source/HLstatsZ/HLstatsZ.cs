@@ -33,7 +33,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "0.3.0";
+    public override string ModuleVersion => "0.4.0";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -64,7 +64,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
         var validCommands = new[] {
             "top10", "rank", "session", "weaponstats",
-            "accuracy", "clans", "commands", "menu"
+            "accuracy", "clans", "commands", "hlx_menu"
         };
 
         if (validCommands.Contains(message) || Regex.IsMatch(message, @"^top\d{1,2}$"))
@@ -75,7 +75,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
                 return HookResult.Handled;
             }
 
-            if (message == "menu")
+            if (message == "hlx_menu")
             {
                 new HLXMenu().ShowMainMenu(player);
             }
@@ -94,32 +94,44 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     [ConsoleCommand("hlx_sm_psay")]
     public void OnHlxSmPsayCommand(CCSPlayerController? _, CommandInfo command)
     {
+        if (command.ArgCount < 2) return; // hlx_sm_psay "1" 1 "message"
+
         var arg = command.ArgByIndex(1);
-        int.TryParse(arg, out var userid);
         var message = command.ArgByIndex(command.ArgCount - 1);
-        var target  = FindPlayerByUserId(userid);
-        var hash = $"{target?.UserId}:{message}";
-        if (_lastPsayHash == hash) {
-           Instance?.Logger.LogInformation("Duplicate message: {hash}", hash);
-           return;
+
+        // Broadcast to all
+        if (Config.BroadcastAll == 1) {
+            var hash = $"ALL:{message}";
+            if (_lastPsayHash == hash) {
+                Instance?.Logger.LogInformation("Duplicate global message: {hash}", hash);
+                return;
+            }
+
+            _lastPsayHash = hash;
+            Server.NextFrame(() => DispatchHLXEvent("say", null, message));
+            return;
         }
-        _lastPsayHash = hash;
-        int? optionalArg = null;
-        if (command.ArgCount > 2) {
-            var arg2 = command.ArgByIndex(2);
-            if (int.TryParse(arg2, out var parsed))
+
+        // Broadcast to user
+        var userIds = arg.Split(',').Select(idStr => int.TryParse(idStr, out var id) ? id : (int?)null)
+                                    .Where(id => id.HasValue)
+                                    .Select(id => id.Value)
+                                    .ToList();
+
+        foreach (var userid in userIds) {
+            var target = FindPlayerByUserId(userid);
+            if (target == null || !target.IsValid) continue;
+
+            var hash = $"{target.UserId}:{message}";
+            if (_lastPsayHash == hash)
             {
-                optionalArg = parsed;
+                Instance?.Logger.LogInformation("Duplicate message to userid: {hash}", hash);
+                continue;
             }
+
+            _lastPsayHash = hash;
+            Server.NextFrame(() => DispatchHLXEvent("psay", target, message));
         }
-        Server.NextFrame(() =>
-        {
-            if (optionalArg == 1 && Config.BroadcastAll == 1) {
-                DispatchHLXEvent("say", null, message);
-            } else {
-                DispatchHLXEvent("psay", target, message);
-            }
-        });
     }
 
     [ConsoleCommand("hlx_sm_csay")]
