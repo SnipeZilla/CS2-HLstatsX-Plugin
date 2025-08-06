@@ -81,7 +81,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             }
             else
             {
-                Server.NextFrame(() => DispatchHLXEvent("psay", player, message));
+                DispatchHLXEvent("psay", player, message);
             }
             return HookResult.Handled;
         }
@@ -109,7 +109,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
                 return;
             }
             _lastPsayHash = hash;
-            Server.NextFrame(() => DispatchHLXEvent("say", null, message));
+            DispatchHLXEvent("say", null, message);
             return;
         }
 
@@ -134,7 +134,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             }
 
             _lastPsayHash = hash;
-            Server.NextFrame(() => DispatchHLXEvent("psay", target, message));
+            DispatchHLXEvent("psay", target, message);
         }
     }
 
@@ -142,7 +142,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     public void OnHlxSmCsayCommand(CCSPlayerController? _, CommandInfo command)
     {
         var message = command.ArgByIndex(1);
-        Server.NextFrame(() => DispatchHLXEvent("csay", null, message));
+        DispatchHLXEvent("csay", null, message);
     }
 
     [ConsoleCommand("hlx_sm_hint")]
@@ -153,7 +153,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         var message = command.ArgByIndex(command.ArgCount - 1);
         var target  = FindPlayerByUserId(userid);
         if (target == null) return;
-        Server.NextFrame(() => DispatchHLXEvent("hint", target, message));
+        DispatchHLXEvent("hint", target, message);
     }
 
     [ConsoleCommand("hlx_sm_msay")]
@@ -164,7 +164,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         var message = command.ArgByIndex(command.ArgCount - 1);
         var target  = FindPlayerByUserId(userid);
         if (target == null) return;
-        Server.NextFrame(() => DispatchHLXEvent("msay", target, message));
+        DispatchHLXEvent("msay", target, message);
     }
 
     // ------------------ Core Logic ------------------
