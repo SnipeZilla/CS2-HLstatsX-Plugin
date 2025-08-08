@@ -33,7 +33,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.0.0";
+    public override string ModuleVersion => "1.1.0";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -99,8 +99,14 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         var arg = command.ArgByIndex(1);
         var message = command.ArgByIndex(command.ArgCount - 1);
 
+        string[] privateOnlyPatterns =
+        {
+            "kills to get regular points",
+            "You have been banned"
+        };
+        bool isPrivateOnly = privateOnlyPatterns.Any(p => message?.IndexOf(p, StringComparison.OrdinalIgnoreCase) >= 0);
         // Broadcast to all
-        if (Config.BroadcastAll == 1)
+        if (Config.BroadcastAll == 1 && !isPrivateOnly)
         {
             var hash = $"ALL:{message}";
             if (_lastPsayHash == hash)
@@ -318,4 +324,5 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         private static void OnClansSelected(CCSPlayerController player) => Instance?.SendLog(player, "session");
         private static void OnHelpSelected(CCSPlayerController player) => Instance?.SendLog(player, "help");
     }
+
 }
