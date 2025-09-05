@@ -63,30 +63,31 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         if (isPrefixed) {
             message = message.Substring(1); // Strip prefix for command handling
 
-            var validCommands = new[] {
-                "top10", "rank", "session", "weaponstats",
-                "accuracy", "clans", "commands", "hlx_menu"
-            };
+        var validCommands = new[] {
+            "top10", "rank", "session", "weaponstats",
+            "accuracy", "clans", "commands", "hlx_menu"
+        };
 
-            if (validCommands.Contains(message) || Regex.IsMatch(message, @"^top\d{1,2}$"))
+        if (validCommands.Contains(message) || Regex.IsMatch(message, @"^top\d{1,2}$"))
+        {
+            if (isPrefixed)
             {
-                if (isPrefixed)
-                {
-                    _ = SendLog(player, message);
-                    return HookResult.Handled;
-                }
-
-                if (message == "hlx_menu")
-                {
-                    new HLXMenu().ShowMainMenu(player);
-                }
-                else
-                {
-                    DispatchHLXEvent("psay", player, message);
-                }
+                _ = SendLog(player, message);
                 return HookResult.Handled;
             }
+
+            if (message == "hlx_menu")
+            {
+                new HLXMenu().ShowMainMenu(player);
+            }
+            else
+            {
+                DispatchHLXEvent("psay", player, message);
+            }
+            return HookResult.Handled;
         }
+}
+
         return HookResult.Continue;
     }
 
@@ -175,58 +176,57 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     }
 
     // ------------------ Core Logic ------------------
-public static string GetLocalIPAddress()
-{
-    using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0);
-    socket.Connect("8.8.8.8", 65530); // Google's DNS
-    var endPoint = socket.LocalEndPoint as IPEndPoint;
-    return endPoint?.Address.ToString() ?? "127.0.0.1";
-}
 
-private async Task SendLog(CCSPlayerController player, string message)
-{
-    if (!player.IsValid) return;
-
-    var name    = player.PlayerName;
-    var userid  = player.UserId;
-    var steamid = (uint)(player.SteamID - 76561197960265728);
-    var team    = player.TeamNum switch
+    public static string GetLocalIPAddress()
     {
-        2 => "TERRORIST",
-        3 => "CT",
-        _ => "UNASSIGNED"
-    };
-
-    var serverAddr = Config.ServerAddr;
-    if (string.IsNullOrWhiteSpace(serverAddr))
-    {
-        var hostPort = ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 27015;
-        var serverIP = GetLocalIPAddress();
-        serverAddr = $"{serverIP}:{hostPort}";
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, 0);
+        socket.Connect("8.8.8.8", 65530); // Google's DNS
+        var endPoint = socket.LocalEndPoint as IPEndPoint;
+        return endPoint?.Address.ToString() ?? "127.0.0.1";
     }
 
-    var logLine = $"L {DateTime.Now:MM/dd/yyyy - HH:mm:ss}: \"{name}<{userid}><[U:1:{steamid}]><{team}>\" say \"{message}\"";
-Instance?.Logger.LogInformation($"{logLine}");
-
-    try
+    private async Task SendLog(CCSPlayerController player, string message)
     {
-        using var httpClient = new HttpClient();
-        httpClient.DefaultRequestHeaders.Add("X-Server-Addr", serverAddr);
+        if (!player.IsValid) return;
 
-        var content = new StringContent(logLine, Encoding.UTF8, "text/plain");
-        var response = await httpClient.PostAsync($"http://{Config.Log_Address}:{Config.Log_Port}/log", content);
-
-        if (!response.IsSuccessStatusCode)
+        var name    = player.PlayerName;
+        var userid  = player.UserId;
+        var steamid = (uint)(player.SteamID - 76561197960265728);
+        var team    = player.TeamNum switch
         {
-            Instance?.Logger.LogInformation($"[HLstatsZ] HTTP log send failed: {response.StatusCode} - {response.ReasonPhrase}");
+            2 => "TERRORIST",
+            3 => "CT",
+            _ => "UNASSIGNED"
+        };
+
+        var serverAddr = Config.ServerAddr;
+        if (string.IsNullOrWhiteSpace(serverAddr))
+        {
+            var hostPort = ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 27015;
+            var serverIP = GetLocalIPAddress();
+            serverAddr = $"{serverIP}:{hostPort}";
+        }
+
+        var logLine = $"L {DateTime.Now:MM/dd/yyyy - HH:mm:ss}: \"{name}<{userid}><[U:1:{steamid}]><{team}>\" say \"{message}\"";
+
+        try
+        {
+            using var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.Add("X-Server-Addr", serverAddr);
+
+            var content = new StringContent(logLine, Encoding.UTF8, "text/plain");
+            var response = await httpClient.PostAsync($"http://{Config.Log_Address}:{Config.Log_Port}/log", content);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                Instance?.Logger.LogInformation($"[HLstatsZ] HTTP log send failed: {response.StatusCode} - {response.ReasonPhrase}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Instance?.Logger.LogInformation($"[HLstatsZ] HTTP log send exception: {ex.Message}");
         }
     }
-    catch (Exception ex)
-    {
-        Instance?.Logger.LogInformation($"[HLstatsZ] HTTP log send exception: {ex.Message}");
-    }
-}
-
 
     public static void DispatchHLXEvent(string type, CCSPlayerController? player, string message)
     {
