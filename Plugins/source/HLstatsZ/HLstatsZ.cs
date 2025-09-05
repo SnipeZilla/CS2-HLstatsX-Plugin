@@ -111,11 +111,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         if (Config.BroadcastAll == 1 && !isPrivateOnly)
         {
             var hash = $"ALL:{message}";
-            if (_lastPsayHash == hash)
-            {
-                // Instance?.Logger.LogInformation("Duplicate global message: {hash}", hash); // it works!
-                return;
-            }
+            if (_lastPsayHash == hash) return;
+
             _lastPsayHash = hash;
             DispatchHLXEvent("say", null, message);
             return;
@@ -135,11 +132,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             if (target == null || !target.IsValid) continue;
 
             var hash = $"{userid}:{message}";
-            if (_lastPsayHash == hash)
-            {
-                Instance?.Logger.LogInformation("Duplicate message to userid: {hash}", hash);
-                continue;
-            }
+            if (_lastPsayHash == hash) continue;
 
             _lastPsayHash = hash;
             DispatchHLXEvent("psay", target, message);
