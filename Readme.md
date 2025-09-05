@@ -25,18 +25,27 @@ This plugin extends CounterStrikeSharp to enable full(mostly) HLstatsX:CE suppor
   `"Log_Address": "127.0.0.1",`<br>
   `"Log_Port": 27500,`<br>
   `"BroadcastAll": 0,`<br>
+<<<<<<< HEAD
   `"ServerAddr":"64.74.97.164:27015"`<br>
+=======
+>>>>>>> b6547421ca6d173013f37d6b53857171a99a7110
 `}`<br>
 
 * logaddress_add_http & Log_Address: IP address of the server where your HLstatsX daemon is running
 
 * Log_Port: The UDP/HTTP port your daemon is listening on (make sure port are open for UDP and TCP)
 
+<<<<<<< HEAD
 * BroadcastAll: 1 to Emulate old hlstatsx.smx (tf2,css...), 0 for sourcemod csgo/cs2
 p
 * ServerAddr: force ip:port if you see not authorized in the log. still highly recommended to force log on known ip:port
   
 ✅ Only works with the updated HLxce daemon v2, which supports both UDP and HTTP log ingestion on the same port.
+=======
+* BroadcastAll: 1 to Emulate old hlstatsx.smx (tf2,css...), 0 for sourcemod csgo
+  
+✅ Works best with the updated HLxce daemon, which supports both UDP and HTTP log ingestion on the same port.
+>>>>>>> b6547421ca6d173013f37d6b53857171a99a7110
 
 
 ## 🧪 Current Status and disclamer

@@ -22,7 +22,10 @@ public class HLstatsZConfig : IBasePluginConfig
     [JsonPropertyName("Log_Address")] public string Log_Address { get; set; } = "127.0.0.1";
     [JsonPropertyName("Log_Port")] public int Log_Port { get; set; } = 27500;
     [JsonPropertyName("BroadcastAll")] public int BroadcastAll { get; set; } = 0;
+<<<<<<< HEAD
     [JsonPropertyName("ServerAddr")] public string ServerAddr { get; set; } = "";
+=======
+>>>>>>> b6547421ca6d173013f37d6b53857171a99a7110
     public int Version { get; set; } = 1;
 }
 
@@ -34,7 +37,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
+<<<<<<< HEAD
     public override string ModuleVersion => "1.2.0";
+=======
+    public override string ModuleVersion => "1.1.0";
+>>>>>>> b6547421ca6d173013f37d6b53857171a99a7110
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -63,10 +70,17 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         if (isPrefixed) {
             message = message.Substring(1); // Strip prefix for command handling
 
+<<<<<<< HEAD
             var validCommands = new[] {
                 "top10", "rank", "session", "weaponstats",
                 "accuracy", "clans", "commands", "hlx_menu"
             };
+=======
+        var validCommands = new[] {
+            "top10", "rank", "session", "weaponstats",
+            "accuracy", "clans", "commands", "hlx_menu"
+        };
+>>>>>>> b6547421ca6d173013f37d6b53857171a99a7110
 
             if (validCommands.Contains(message) || Regex.IsMatch(message, @"^top\d{1,2}$"))
             {
@@ -86,6 +100,19 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
                 }
                 return HookResult.Handled;
             }
+<<<<<<< HEAD
+=======
+
+            if (message == "hlx_menu")
+            {
+                new HLXMenu().ShowMainMenu(player);
+            }
+            else
+            {
+                DispatchHLXEvent("psay", player, message);
+            }
+            return HookResult.Handled;
+>>>>>>> b6547421ca6d173013f37d6b53857171a99a7110
         }
         return HookResult.Continue;
     }
@@ -112,7 +139,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             var hash = $"ALL:{message}";
             if (_lastPsayHash == hash)
             {
+<<<<<<< HEAD
                 // Instance?.Logger.LogInformation("Duplicate global message: {hash}", hash); // it works!
+=======
+                Instance?.Logger.LogInformation("Duplicate global message: {hash}", hash);
+>>>>>>> b6547421ca6d173013f37d6b53857171a99a7110
                 return;
             }
             _lastPsayHash = hash;
@@ -201,6 +232,7 @@ private async Task SendLog(CCSPlayerController player, string message)
     if (string.IsNullOrWhiteSpace(serverAddr))
     {
         var hostPort = ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 27015;
+<<<<<<< HEAD
         var serverIP = GetLocalIPAddress();
         serverAddr = $"{serverIP}:{hostPort}";
     }
@@ -219,6 +251,19 @@ Instance?.Logger.LogInformation($"{logLine}");
         if (!response.IsSuccessStatusCode)
         {
             Instance?.Logger.LogInformation($"[HLstatsZ] HTTP log send failed: {response.StatusCode} - {response.ReasonPhrase}");
+=======
+        var logLine = $"L {DateTime.Now:MM/dd/yyyy - HH:mm:ss}: \"{name}<{userid}><[U:1:{steamid}]><{team}>\" say \"{Message}\""; // / Extra log for hidden msg
+        try
+        {
+            var localEP = new IPEndPoint(IPAddress.Any, hostPort);
+            var client = new UdpClient(localEP);
+            var bytes = Encoding.UTF8.GetBytes(logLine);
+            client.Send(bytes, bytes.Length, Config.Log_Address, Config.Log_Port);
+        }
+        catch (Exception ex)
+        {
+            Instance?.Logger.LogInformation($"[HLstatsZ] UDP log send failed: {ex.Message}");
+>>>>>>> b6547421ca6d173013f37d6b53857171a99a7110
         }
     }
     catch (Exception ex)
