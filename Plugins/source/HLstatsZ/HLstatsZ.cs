@@ -11,6 +11,8 @@ using CounterStrikeSharp.API.Modules.Menu;
 using CounterStrikeSharp.API.Modules.Entities;
 using CounterStrikeSharp.API.Modules.Events;
 using CounterStrikeSharp.API.Modules.Cvars;
+using CounterStrikeSharp.API.Modules.Timers;
+using GameTimer = CounterStrikeSharp.API.Modules.Timers.Timer; 
 using System.Net.Sockets;
 using System.Net;
 using System.Text;
@@ -34,7 +36,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.2.0";
+    public override string ModuleVersion => "1.3.0";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -232,7 +234,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
                 else Instance?.Logger.LogInformation($"Player null from message: {message}");
                 break;
             case "csay":
-                BroadcastCenterMessage(message);
+                Instance.BroadcastCenterMessage(message);
                 break;
             case "msay":
                 if (player != null) openChatMenu(Instance, player, message);
@@ -265,13 +267,32 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         Server.PrintToChatAll($"{message}");
     }
 
-    public static void BroadcastCenterMessage(string message)
+    public void BroadcastCenterMessage(string message, int durationInSeconds = 10)
     {
-        foreach (var p in Utilities.GetPlayers())
+        message = message.Replace(
+            "HLstatsZ",
+            "<font color='#FFFFFF'><b>HLstats</b></font><font color='#FF2A2A'><b>Z</b></font>");
+        message = message.Replace(
+            "HLstatsX:CE",
+            "<font color='#FFFFFF'><b>HLstats</b></font><font color='#3AA0FF'><b>X</b></font><font color='#FFFFFF'>:CE</font>");
+    
+        string htmlContent = $"<font color='#FFFFFF'>{message}</font>";
+    
+        var menu = new CenterHtmlMenu(htmlContent, this)
         {
+            ExitButton = false
+        };
+    
+        foreach (var p in Utilities.GetPlayers())
             if (p?.IsValid == true)
-                p.PrintToCenter($"{message}");
-        }
+                menu.Open(p!);
+    
+        _ = new GameTimer(durationInSeconds, () =>
+        {
+            foreach (var p in Utilities.GetPlayers())
+                if (p?.IsValid == true)
+                    MenuManager.CloseActiveMenu(p!);
+        });
     }
 
     public static void ShowHintMessage(CCSPlayerController player, string message)
