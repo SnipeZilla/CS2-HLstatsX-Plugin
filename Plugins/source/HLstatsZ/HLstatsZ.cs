@@ -36,7 +36,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.3.0";
+    public override string ModuleVersion => "1.3.1";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -267,7 +267,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         Server.PrintToChatAll($"{message}");
     }
 
-    public void BroadcastCenterMessage(string message, int durationInSeconds = 10)
+    public void BroadcastCenterMessage(string message, int durationInSeconds = 5)
     {
         message = message.Replace(
             "HLstatsZ",
