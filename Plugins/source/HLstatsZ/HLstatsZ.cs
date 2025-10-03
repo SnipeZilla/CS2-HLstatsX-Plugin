@@ -31,12 +31,13 @@ public class HLstatsZConfig : IBasePluginConfig
 public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 {
     public static HLstatsZ? Instance;
+    private static readonly HttpClient httpClient = new();
     public HLstatsZConfig Config { get; set; } = new();
 
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.3.1";
+    public override string ModuleVersion => "1.3.2";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -49,49 +50,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     {
         Instance = this;
         RegisterEventHandler<EventPlayerChat>(OnPlayerChat);
+        RegisterEventHandler<EventRoundMvp>(OnRoundMvp);
+        RegisterEventHandler<EventBombDefused>(OnBombDefused);
     }
 
-    private HookResult OnPlayerChat(EventPlayerChat @event, GameEventInfo info)
-    {
-        var player = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && p.UserId == @event.Userid);
-        if (player == null) return HookResult.Continue;
 
-        var originalMessage = @event.Text?.Trim() ?? "";
-        var message = originalMessage.ToLower();
-
-        if (string.IsNullOrEmpty(message)) return HookResult.Continue;
-
-        bool isPrefixed = message.StartsWith("/") || message.StartsWith("!");
-        if (isPrefixed) {
-            message = message.Substring(1); // Strip prefix for command handling
-
-        var validCommands = new[] {
-            "top10", "rank", "session", "weaponstats",
-            "accuracy", "clans", "commands", "hlx_menu"
-        };
-
-        if (validCommands.Contains(message) || Regex.IsMatch(message, @"^top\d{1,2}$"))
-        {
-            if (isPrefixed)
-            {
-                _ = SendLog(player, message);
-                return HookResult.Handled;
-            }
-
-            if (message == "hlx_menu")
-            {
-                new HLXMenu().ShowMainMenu(player);
-            }
-            else
-            {
-                DispatchHLXEvent("psay", player, message);
-            }
-            return HookResult.Handled;
-        }
-}
-
-        return HookResult.Continue;
-    }
 
     // ------------------ Console Commands ------------------
 
@@ -180,7 +143,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         return endPoint?.Address.ToString() ?? "127.0.0.1";
     }
 
-    private async Task SendLog(CCSPlayerController player, string message)
+    public async Task SendLog(CCSPlayerController player, string message, string verb)
     {
         if (!player.IsValid) return;
 
@@ -202,11 +165,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             serverAddr = $"{serverIP}:{hostPort}";
         }
 
-        var logLine = $"L {DateTime.Now:MM/dd/yyyy - HH:mm:ss}: \"{name}<{userid}><[U:1:{steamid}]><{team}>\" say \"{message}\"";
+        var logLine = $"L {DateTime.Now:MM/dd/yyyy - HH:mm:ss}: \"{name}<{userid}><[U:1:{steamid}]><{team}>\" {verb} \"{message}\"";
 
         try
         {
-            using var httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.Add("X-Server-Addr", serverAddr);
 
             var content = new StringContent(logLine, Encoding.UTF8, "text/plain");
@@ -275,18 +237,18 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         message = message.Replace(
             "HLstatsX:CE",
             "<font color='#FFFFFF'><b>HLstats</b></font><font color='#3AA0FF'><b>X</b></font><font color='#FFFFFF'>:CE</font>");
-    
+
         string htmlContent = $"<font color='#FFFFFF'>{message}</font>";
-    
+
         var menu = new CenterHtmlMenu(htmlContent, this)
         {
             ExitButton = false
         };
-    
+
         foreach (var p in Utilities.GetPlayers())
             if (p?.IsValid == true)
                 menu.Open(p!);
-    
+
         _ = new GameTimer(durationInSeconds, () =>
         {
             foreach (var p in Utilities.GetPlayers())
@@ -357,11 +319,86 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
             menu.Open(player);
         }
-        private static void OnTopPlayersSelected(CCSPlayerController player) => Instance?.SendLog(player, "top10");
-        private static void OnWeaponStatsSelected(CCSPlayerController player) => Instance?.SendLog(player, "rank");
-        private static void OnAccuracySelected(CCSPlayerController player) => Instance?.SendLog(player,  "accuracy");
-        private static void OnClansSelected(CCSPlayerController player) => Instance?.SendLog(player, "session");
-        private static void OnHelpSelected(CCSPlayerController player) => Instance?.SendLog(player, "help");
+        private static void OnTopPlayersSelected(CCSPlayerController player) => Instance?.SendLog(player, "top10","say");
+        private static void OnWeaponStatsSelected(CCSPlayerController player) => Instance?.SendLog(player, "rank", "say");
+        private static void OnAccuracySelected(CCSPlayerController player) => Instance?.SendLog(player,  "accuracy", "say");
+        private static void OnClansSelected(CCSPlayerController player) => Instance?.SendLog(player, "session", "say");
+        private static void OnHelpSelected(CCSPlayerController player) => Instance?.SendLog(player, "help","say");
+    }
+
+    // ------------------ Event Handler ------------------
+    public HookResult OnPlayerChat(EventPlayerChat @event, GameEventInfo info)
+    {
+        var player = Utilities.GetPlayerFromUserid(@event.Userid);
+        if (player == null) return HookResult.Continue;
+
+        var originalMessage = @event.Text?.Trim() ?? "";
+        var message = originalMessage.ToLower();
+
+        if (string.IsNullOrEmpty(message)) return HookResult.Continue;
+
+        bool isPrefixed = message.StartsWith("/") || message.StartsWith("!");
+        if (isPrefixed) {
+            message = message.Substring(1); // Strip prefix for command handling
+
+            var validCommands = new[] {
+                "top10", "rank", "session", "weaponstats",
+                "accuracy", "clans", "commands", "hlx_menu"
+            };
+
+            if (validCommands.Contains(message) || Regex.IsMatch(message, @"^top\d{1,2}$"))
+            {
+                if (isPrefixed)
+                {
+                    _ = SendLog(player, message, "say");
+                    return HookResult.Handled;
+                }
+
+                if (message == "hlx_menu")
+                {
+                    new HLXMenu().ShowMainMenu(player);
+                }
+                else
+                {
+                    DispatchHLXEvent("psay", player, message);
+                }
+                return HookResult.Handled;
+            }
+        }
+
+        return HookResult.Continue;
+    }
+
+    public HookResult OnRoundMvp(EventRoundMvp @event, GameEventInfo info)
+    {
+        var reason = @event.Reason;
+        var player = @event.Userid;
+        if (player == null) return HookResult.Continue;
+
+        string reasonText = reason switch
+        {
+            1 => "most eliminations",
+            2 => "bomb planted",
+            3 => "bomb defused",
+            4 => "hostage rescued",
+            5 => "hostage rescue prevented",
+            6 => "suicide",
+            7 => "team kill",
+            8 => "objective contribution",
+            _ => "unknown reason"
+        };
+
+        _ = SendLog(player, $"round_mvp", "triggered");
+        return HookResult.Continue;
+    }
+
+    public HookResult OnBombDefused(EventBombDefused @event, GameEventInfo info)
+    {
+        var player = @event.Userid;
+        if (player == null) return HookResult.Continue;
+
+        _ = SendLog(player, "Defused_The_Bomb", "triggered");
+        return HookResult.Continue;
     }
 
 }
