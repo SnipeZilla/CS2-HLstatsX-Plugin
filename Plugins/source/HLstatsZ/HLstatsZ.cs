@@ -54,6 +54,12 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         RegisterEventHandler<EventBombDefused>(OnBombDefused);
     }
 
+    public override void Unload(bool hotReload)
+    {
+        DeregisterEventHandler<EventPlayerChat>(OnPlayerChat);
+        DeregisterEventHandler<EventRoundMvp>(OnRoundMvp);
+        DeregisterEventHandler<EventBombDefused>(OnBombDefused);
+    }
 
 
     // ------------------ Console Commands ------------------
