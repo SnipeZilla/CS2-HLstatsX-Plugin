@@ -175,7 +175,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
         try
         {
-            httpClient.DefaultRequestHeaders.Add("X-Server-Addr", serverAddr);
+            if (!httpClient.DefaultRequestHeaders.Contains("X-Server-Addr"))
+                httpClient.DefaultRequestHeaders.Add("X-Server-Addr", serverAddr);
 
             var content = new StringContent(logLine, Encoding.UTF8, "text/plain");
             var response = await httpClient.PostAsync($"http://{Config.Log_Address}:{Config.Log_Port}/log", content);
@@ -336,7 +337,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     public HookResult OnPlayerChat(EventPlayerChat @event, GameEventInfo info)
     {
         var player = Utilities.GetPlayerFromUserid(@event.Userid);
-        if (player == null) return HookResult.Continue;
+        if (player == null || !player.IsValid) return HookResult.Continue;
 
         var originalMessage = @event.Text?.Trim() ?? "";
         var message = originalMessage.ToLower();
@@ -379,7 +380,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     {
         var reason = @event.Reason;
         var player = @event.Userid;
-        if (player == null) return HookResult.Continue;
+        if (player == null || !player.IsValid) return HookResult.Continue;
 
         string reasonText = reason switch
         {
@@ -401,7 +402,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     public HookResult OnBombDefused(EventBombDefused @event, GameEventInfo info)
     {
         var player = @event.Userid;
-        if (player == null) return HookResult.Continue;
+        if (player == null || !player.IsValid) return HookResult.Continue;
 
         _ = SendLog(player, "Defused_The_Bomb", "triggered");
         return HookResult.Continue;
