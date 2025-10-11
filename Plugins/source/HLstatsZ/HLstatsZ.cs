@@ -12,7 +12,7 @@ using CounterStrikeSharp.API.Modules.Entities;
 using CounterStrikeSharp.API.Modules.Events;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Timers;
-using GameTimer = CounterStrikeSharp.API.Modules.Timers.Timer; 
+using GameTimer = CounterStrikeSharp.API.Modules.Timers.Timer;
 using System.Net.Sockets;
 using System.Net;
 using System.Text;
@@ -34,10 +34,12 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private static readonly HttpClient httpClient = new();
     public HLstatsZConfig Config { get; set; } = new();
 
+    public static readonly Dictionary<int, HLZMenuManager> Players = new();
+
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.3.2";
+    public override string ModuleVersion => "2.0.0";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -45,13 +47,18 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         Config = config;
         Console.WriteLine($"[HLstatsZ] Config loaded: {Config.Log_Address}:{Config.Log_Port}");
     }
-
+    private HLZMenuManager _menuManager = null!;
     public override void Load(bool hotReload)
     {
         Instance = this;
+        _menuManager = new HLZMenuManager(this);
         RegisterEventHandler<EventPlayerChat>(OnPlayerChat);
         RegisterEventHandler<EventRoundMvp>(OnRoundMvp);
         RegisterEventHandler<EventBombDefused>(OnBombDefused);
+        RegisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect);
+        RegisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
+        RegisterListener<Listeners.OnTick>(OnTick);
+
     }
 
     public override void Unload(bool hotReload)
@@ -59,9 +66,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         DeregisterEventHandler<EventPlayerChat>(OnPlayerChat);
         DeregisterEventHandler<EventRoundMvp>(OnRoundMvp);
         DeregisterEventHandler<EventBombDefused>(OnBombDefused);
+        DeregisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect);
+        DeregisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
+        RemoveListener<Listeners.OnTick>(OnTick);
     }
-
-
     // ------------------ Console Commands ------------------
 
     [ConsoleCommand("hlx_sm_psay")]
@@ -138,6 +146,59 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         if (target == null || !target.IsValid) return;
         DispatchHLXEvent("msay", target, message);
     }
+    // --------------------- Menu ---------------------
+    private const int PollInterval = 2; 
+    private int _tickCounter;
+    private readonly Dictionary<ulong, PlayerButtons> _lastButtons = new();
+
+    private void OnTick() {
+        if (_menuManager._activeMenus.Count == 0) return;
+        if (++_tickCounter % PollInterval != 0)
+            return;
+        foreach (var player in Utilities.GetPlayers())
+        {
+            if (!_menuManager._activeMenus.TryGetValue(player.SteamID, out var menu)) continue;
+            var steamId = player.SteamID;
+            if (player == null || !player.IsValid)
+            {
+                _menuManager.DestroyMenu(player!);
+                _lastButtons.Remove(steamId);
+                continue;
+            }
+            var current = player.Buttons;
+            var last = _lastButtons.TryGetValue(steamId, out var prev) ? prev : PlayerButtons.Cancel;
+
+            if (current.HasFlag(PlayerButtons.Forward) && !last.HasFlag(PlayerButtons.Forward))
+                HandleWasdPress(player, "W");
+
+            if (current.HasFlag(PlayerButtons.Back) && !last.HasFlag(PlayerButtons.Back))
+                HandleWasdPress(player, "S");
+
+            if (current.HasFlag(PlayerButtons.Moveleft) && !last.HasFlag(PlayerButtons.Moveleft))
+                HandleWasdPress(player, "A");
+
+            if (current.HasFlag(PlayerButtons.Moveright) && !last.HasFlag(PlayerButtons.Moveright))
+                HandleWasdPress(player, "D");
+
+            if (current.HasFlag(PlayerButtons.Use) && !last.HasFlag(PlayerButtons.Use))
+                HandleWasdPress(player, "E");
+
+            _lastButtons[steamId] = current;
+
+        }
+    }
+
+    private void HandleWasdPress(CCSPlayerController player, string key)
+    {
+        switch (key)
+        {
+            case "W": _menuManager.HandleNavigation(player,-1); break;
+            case "S": _menuManager.HandleNavigation(player,+1); break;
+            case "A": _menuManager.HandleBack(player); break;
+            case "D": _menuManager.HandlePage(player,+1); break;
+            case "E": _menuManager.HandleSelect(player); break;
+        }
+    }
 
     // ------------------ Core Logic ------------------
 
@@ -152,7 +213,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     public async Task SendLog(CCSPlayerController player, string message, string verb)
     {
         if (!player.IsValid) return;
-
         var name    = player.PlayerName;
         var userid  = player.UserId;
         var steamid = (uint)(player.SteamID - 76561197960265728);
@@ -206,7 +266,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
                 Instance.BroadcastCenterMessage(message);
                 break;
             case "msay":
-                if (player != null) openChatMenu(Instance, player, message);
+                if (player != null && Instance?._menuManager != null)
+                    Instance._menuManager.Open(player, message);
                 break;
             case "say":
                 SendChatToAll(message);
@@ -269,70 +330,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         player.PrintToCenter($"{message}"); //something else for hint?
     }
 
-    public static void openChatMenu(BasePlugin plugin, CCSPlayerController player, string content)
-    {
-        var rawLines = content.Replace("\r\n", "\n").Replace("\r", "\n").Replace("\\n", "\n")
-            .Split('\n')
-            .Select(l => l.Trim())
-            .Where(l => !string.IsNullOrWhiteSpace(l))
-            .ToArray();
-
-        var headingRaw = rawLines.FirstOrDefault() ?? "Stats";
-        var heading = Regex.Replace(headingRaw, @"->\d+\s*-\s*", "").Trim();
-
-        var normalized = content.Replace("\r\n", "\n").Replace("\r", "\n").Replace("\\n", "\n"); // sourcemod
-
-        var lines = normalized.Split('\n')
-            .Select(l => l.Trim())
-            .Where(l => !string.IsNullOrWhiteSpace(l))
-            .ToArray();
-
-        var menu = new ChatMenu($"hlx_menu_{player}")
-        {
-            Title = $"HLstats\x07Z \x01- {heading}",
-            ExitButton  = true,
-            TitleColor  = ChatColors.White,
-            EnabledColor = ChatColors.Green,
-            DisabledColor = ChatColors.Grey
-        };
-
-        foreach (var line in lines)
-        {
-            menu.AddMenuOption(line, (_, _) => { }, true);
-        }
-
-        menu.Open(player);
-    }
-
-    public class HLXMenu
-    {
-        private readonly string _menuIdPrefix = "hlx_menu";
-
-        public void ShowMainMenu(CCSPlayerController player)
-        {
-            var menu = new ChatMenu($"{_menuIdPrefix}_{player.SteamID}")
-            {
-                Title = $"HLstats\x07Z \x01- Main Menu",
-                ExitButton = true,
-                EnabledColor = ChatColors.Green,
-                DisabledColor = ChatColors.Grey
-            };
-
-            menu.AddMenuOption("- Top Players", (_, _) => OnTopPlayersSelected(player));
-            menu.AddMenuOption("- Rank", (_, _) => OnWeaponStatsSelected(player));
-            menu.AddMenuOption("- Accuracy", (_, _) => OnAccuracySelected(player));
-            menu.AddMenuOption("- Session", (_, _) => OnClansSelected(player));
-            menu.AddMenuOption("- Help", (_, _) => OnHelpSelected(player));
-
-            menu.Open(player);
-        }
-        private static void OnTopPlayersSelected(CCSPlayerController player) => Instance?.SendLog(player, "top10","say");
-        private static void OnWeaponStatsSelected(CCSPlayerController player) => Instance?.SendLog(player, "rank", "say");
-        private static void OnAccuracySelected(CCSPlayerController player) => Instance?.SendLog(player,  "accuracy", "say");
-        private static void OnClansSelected(CCSPlayerController player) => Instance?.SendLog(player, "session", "say");
-        private static void OnHelpSelected(CCSPlayerController player) => Instance?.SendLog(player, "help","say");
-    }
-
     // ------------------ Event Handler ------------------
     public HookResult OnPlayerChat(EventPlayerChat @event, GameEventInfo info)
     {
@@ -345,33 +342,42 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         if (string.IsNullOrEmpty(message)) return HookResult.Continue;
 
         bool isPrefixed = message.StartsWith("/") || message.StartsWith("!");
-        if (isPrefixed) {
+        if (isPrefixed)
             message = message.Substring(1); // Strip prefix for command handling
 
             var validCommands = new[] {
                 "top10", "rank", "session", "weaponstats",
-                "accuracy", "clans", "commands", "hlx_menu"
+                "accuracy", "next", "clans", "commands", "hlx_menu", "menu"
             };
 
             if (validCommands.Contains(message) || Regex.IsMatch(message, @"^top\d{1,2}$"))
             {
+
+                if (message == "hlx_menu" || message == "menu")
+                {
+                    var content = "->1 - Menu\n1. Rank\n2. TOP 10\n3. Next Player\n4. Admin";
+                    var callbacks = new Dictionary<string, Action<CCSPlayerController>>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        { "1. Rank", p => _ = SendLog(p, "rank", "say") },
+                        { "2. TOP 10", p => _ = SendLog(p, "top10", "say") },
+                        { "3. Next Player", p => _ = SendLog(p, "next", "say") },
+                        { "4. Admin", p => _ = SendLog(p, "admin", "say") }
+                    };
+                    Instance?._menuManager.Open(player, content, 0, callbacks);
+                    
+                }
+
                 if (isPrefixed)
                 {
                     _ = SendLog(player, message, "say");
                     return HookResult.Handled;
                 }
 
-                if (message == "hlx_menu")
-                {
-                    new HLXMenu().ShowMainMenu(player);
-                }
-                else
-                {
-                    DispatchHLXEvent("psay", player, message);
-                }
+                DispatchHLXEvent("psay", player, message);
                 return HookResult.Handled;
+
             }
-        }
+
 
         return HookResult.Continue;
     }
@@ -384,18 +390,17 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
         string reasonText = reason switch
         {
-            1 => "most eliminations",
-            2 => "bomb planted",
-            3 => "bomb defused",
-            4 => "hostage rescued",
-            5 => "hostage rescue prevented",
-            6 => "suicide",
-            7 => "team kill",
-            8 => "objective contribution",
-            _ => "unknown reason"
+            1  => "with most eliminations",
+            2  => "with bomb planted",
+            3  => "with bomb defused",
+            4  => "with hostage rescued",
+            11 => "with HE grenade",
+            14 => "with a clutch defuse",
+            15 => "with most kills",
+            _  => $"with event {reason}"
         };
 
-        _ = SendLog(player, $"round_mvp", "triggered");
+        _ = SendLog(player, $"round_mvp {reasonText}", "triggered");
         return HookResult.Continue;
     }
 
@@ -405,6 +410,22 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         if (player == null || !player.IsValid) return HookResult.Continue;
 
         _ = SendLog(player, "Defused_The_Bomb", "triggered");
+        return HookResult.Continue;
+    }
+
+    public HookResult OnPlayerDisconnect(EventPlayerDisconnect @event, GameEventInfo info)
+    {
+        var player = @event.Userid;
+        if (player != null && player.IsValid)
+            _menuManager.DestroyMenu(player);
+        return HookResult.Continue;
+    }
+
+    public HookResult OnPlayerDeath(EventPlayerDeath @event, GameEventInfo info)
+    {
+        var player = @event.Userid;
+        if (player != null && player.IsValid)
+            _menuManager.DestroyMenu(player);
         return HookResult.Continue;
     }
 
