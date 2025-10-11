@@ -192,6 +192,7 @@ public class HLZMenuManager
         _pageOptions.Remove(player.SteamID);
         _menuPages.Remove(player.SteamID);
         _selectedIndex.Remove(player.SteamID);
+        _menuHistory.Remove(player.SteamID);
     }
 
     public void HandleBack(CCSPlayerController player)

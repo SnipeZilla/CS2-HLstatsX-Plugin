@@ -314,20 +314,20 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         };
 
         foreach (var p in Utilities.GetPlayers())
-            if (p?.IsValid == true)
+            if (p?.IsValid == true && !_menuManager._activeMenus.TryGetValue(p.SteamID, out var mmenu))
                 menu.Open(p!);
 
         _ = new GameTimer(durationInSeconds, () =>
         {
             foreach (var p in Utilities.GetPlayers())
-                if (p?.IsValid == true)
+                if (p?.IsValid == true && !_menuManager._activeMenus.TryGetValue(p.SteamID, out var mmenu))
                     MenuManager.CloseActiveMenu(p!);
         });
     }
 
     public static void ShowHintMessage(CCSPlayerController player, string message)
     {
-        player.PrintToCenter($"{message}"); //something else for hint?
+        player.PrintToCenter($"{message}");
     }
 
     // ------------------ Event Handler ------------------
