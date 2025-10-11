@@ -1,18 +1,10 @@
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using Microsoft.Extensions.Logging;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Core.Plugin;
-using CounterStrikeSharp.API.Modules.Commands;
-using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Menu;
-using CounterStrikeSharp.API.Modules.Events;
-using CounterStrikeSharp.API.Core.Capabilities;
-using GameTimer = CounterStrikeSharp.API.Modules.Timers.Timer; 
+using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Entities.Constants;
-using CounterStrikeSharp.API.Modules.Memory;
 
 namespace HLstatsZ;
 
@@ -20,13 +12,17 @@ public class HLZMenuManager
 {
     private readonly BasePlugin _plugin;
     public CCSPlayerController player { get; set; } = null!;
+
     private readonly Dictionary<ulong, int> _menuPages = new();
     private readonly Dictionary<ulong, int> _selectedIndex = new();
     private readonly Dictionary<ulong, List<(string Text, Action<CCSPlayerController> Callback)>> _pageOptions = new();
     public readonly Dictionary<ulong, CenterHtmlMenu> _activeMenus = new();
+
     private string _lastContent = "";
     private List<string[]>? _lastPages;
-    private readonly Dictionary<ulong, Stack<(string Content, Dictionary<string, Action<CCSPlayerController>>? Callbacks)>> _menuHistory = new();
+
+    // Unified history: content + page + callbacks
+    private readonly Dictionary<ulong, Stack<(string Content, int Page, Dictionary<string, Action<CCSPlayerController>>? Callbacks)>> _menuHistory = new();
 
     public HLZMenuManager(BasePlugin plugin)
     {
@@ -40,7 +36,6 @@ public class HLZMenuManager
 
         foreach (var line in lines)
         {
-
             if (line.Length > 2 && line[0] == '-' && line[1] == '>' && char.IsDigit(line[2]))
             {
                 current = new List<string>();
@@ -72,18 +67,15 @@ public class HLZMenuManager
     }
 
     public void Open(CCSPlayerController player, string content, int page = 0,
-                     Dictionary<string, Action<CCSPlayerController>>? callbacks = null,bool pushHistory = true)
+                     Dictionary<string, Action<CCSPlayerController>>? callbacks = null, bool pushHistory = true)
     {
         var steamId = player.SteamID;
 
         if (!_menuHistory.TryGetValue(steamId, out var stack))
         {
-            stack = new Stack<(string, Dictionary<string, Action<CCSPlayerController>>?)>();
+            stack = new Stack<(string, int, Dictionary<string, Action<CCSPlayerController>>?)>();
             _menuHistory[steamId] = stack;
         }
-
-        if (pushHistory && (stack.Count == 0 || stack.Peek().Content != content))
-            stack.Push((content, callbacks));
 
         if (_lastPages == null || !string.Equals(_lastContent, content, StringComparison.Ordinal))
         {
@@ -107,6 +99,12 @@ public class HLZMenuManager
 
         page = Math.Clamp(page, 0, totalPages - 1);
 
+        // Only push if new state
+        if (pushHistory && (stack.Count == 0 || stack.Peek().Content != content || stack.Peek().Page != page))
+        {
+            stack.Push((content, page, callbacks));
+        }
+
         var pageLines = pages[page];
         var heading = NormalizeHeading(pageLines.FirstOrDefault());
         var displayLines = pageLines.Skip(1).ToArray();
@@ -127,11 +125,14 @@ public class HLZMenuManager
         {
             var cleanLine = Regex.Replace(displayLines[i], @"^!\d+\s*", "").Trim();
 
-            if (callbacks != null && callbacks.TryGetValue(cleanLine, out var cb)) {
+            if (callbacks != null && callbacks.TryGetValue(cleanLine, out var cb))
+            {
                 options.Add((cleanLine, cb));
-            } else {
+            }
+            else
+            {
                 options.Add((cleanLine, _ => { /* no-op */ }));
-                if ( i == _selectedIndex[player.SteamID] )
+                if (i == _selectedIndex[player.SteamID])
                     _selectedIndex[player.SteamID]++;
             }
 
@@ -163,26 +164,10 @@ public class HLZMenuManager
         player.Freeze();
     }
 
-    private Action<CCSPlayerController> autoClose(
-        Action<CCSPlayerController> inner,
-        int delaySeconds = 5)
-    {
-        return player =>
-        {
-            inner(player);
-
-            _ = new GameTimer(delaySeconds, () =>
-            {
-                foreach (var p in Utilities.GetPlayers())
-                    if (p?.IsValid == true)
-                        MenuManager.CloseActiveMenu(p!);
-            });
-        };
-    }
-
     public void DestroyMenu(CCSPlayerController player)
     {
         if (player == null || !player.IsValid) return;
+
         player.UnFreeze();
         if (_activeMenus.TryGetValue(player.SteamID, out var menu))
         {
@@ -201,11 +186,10 @@ public class HLZMenuManager
         if (!_menuHistory.TryGetValue(steamId, out var stack) || stack.Count <= 1)
             return;
 
-        if (stack.Count >1)
-            stack.Pop();
-        var (prevContent, prevCallbacks) = stack.Peek();
+        stack.Pop(); // remove current
+        var (prevContent, prevPage, prevCallbacks) = stack.Peek();
 
-        Open(player, prevContent, 0, prevCallbacks, pushHistory: false);
+        Open(player, prevContent, prevPage, prevCallbacks, pushHistory: false);
     }
 
     public void HandlePage(CCSPlayerController player, int delta)
@@ -216,15 +200,11 @@ public class HLZMenuManager
 
         var newPage = Math.Max(0, currentPage + delta);
 
-    Dictionary<string, Action<CCSPlayerController>>? callbacks = null;
-    if (_menuHistory.TryGetValue(steamId, out var stack))
-    {
-        var (_, prevCallbacks) = stack.Peek();
-        callbacks = prevCallbacks;
-    }
-
-    Open(player, _lastContent, newPage, callbacks);
-
+        if (_menuHistory.TryGetValue(steamId, out var stack))
+        {
+            var (content, _, callbacks) = stack.Peek();
+            Open(player, content, newPage, callbacks);
+        }
     }
 
     public void HandleNavigation(CCSPlayerController player, int delta)
@@ -242,14 +222,11 @@ public class HLZMenuManager
 
         var page = _menuPages.TryGetValue(steamId, out var p) ? p : 0;
 
-        Dictionary<string, Action<CCSPlayerController>>? callbacks = null;
         if (_menuHistory.TryGetValue(steamId, out var stack))
         {
-            var (_, prevCallbacks) = stack.Peek();
-            callbacks = prevCallbacks;
+            var (content, _, callbacks) = stack.Peek();
+            Open(player, content, page, callbacks, pushHistory: false);
         }
-
-        Open(player, _lastContent, page, callbacks, pushHistory: false);
     }
 
     public void HandleSelect(CCSPlayerController player)
