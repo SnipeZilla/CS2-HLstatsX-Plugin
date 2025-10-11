@@ -361,10 +361,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
                         { "1. Rank", p => _ = SendLog(p, "rank", "say") },
                         { "2. TOP 10", p => _ = SendLog(p, "top10", "say") },
                         { "3. Next Player", p => _ = SendLog(p, "next", "say") },
-                        { "4. Admin", p => _ = SendLog(p, "admin", "say") }
+                        { "4. Admin", _ => { /* no-op */ } }
                     };
                     Instance?._menuManager.Open(player, content, 0, callbacks);
-                    
+                    return HookResult.Handled;
                 }
 
                 if (isPrefixed)

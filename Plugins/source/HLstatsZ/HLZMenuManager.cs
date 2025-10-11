@@ -116,8 +116,9 @@ public class HLZMenuManager
         if (displayLines.Length == 0)
             _selectedIndex[steamId] = 0;
 
-        string main = $"<font color='#FFFFFF'><b>HLstats</b></font><font color='#FF2A2A'><b>Z</b></font> - " +
-                      $"<font color='#FFFFFF'>{heading} (Page {page + 1}/{totalPages})</font><br>";
+        string main = $"<font color='#FFFFFF'><b>HLstats</b></font><font color='#FF2A2A'><b>Z</b></font>" +
+                      $"<font color='#F0E68C'> - {heading}</font>"+
+                      $"<font color='#FFFACD'> (Page {page + 1}/{totalPages})</font><br>";
 
         var options = new List<(string, Action<CCSPlayerController>)>();
 
@@ -137,8 +138,8 @@ public class HLZMenuManager
             }
 
             main += (i == _selectedIndex[steamId]
-                ? $"<font color='#00FF00'>▶ {cleanLine} ◀</font><br>"
-                : $"<font color='#FFFFFF'>{cleanLine}</font><br>");
+                ? $"<font color='#00FF00'>⫸ {cleanLine} ⫷</font><br>"
+                : $"<font color='#DCDCDC'>{cleanLine}</font><br>");
         }
 
         var closeLabel = "[ Close ]";
@@ -151,7 +152,7 @@ public class HLZMenuManager
             _selectedIndex[steamId] = closeIndex;
 
         main += (_selectedIndex[steamId] == closeIndex
-            ? $"<font color='#00FF00'>▶ {closeLabel} ◀</font><br>"
+            ? $"<font color='#00FF00'>⫸ {closeLabel} ⫷</font><br>"
             : $"<font color='#FF2A2A'>{closeLabel}</font><br>");
 
         options.Add((closeLabel, p => DestroyMenu(p)));
