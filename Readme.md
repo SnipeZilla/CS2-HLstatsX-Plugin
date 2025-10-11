@@ -10,6 +10,7 @@ This plugin extends CounterStrikeSharp to enable full(mostly) HLstatsX:CE suppor
 - ✅ Sends additional HTTP game event which are not logged by cs2
 - 🚀 Optimized for modern CS2 servers and the revamped HLstatsX ecosystem
 - 🧩️ Minimal performance and Fully configurable
+- 😻 WASDE menu
 - ⚙️ CS2 x-server.cfg:
 
 ## ⚙️ Config
@@ -28,7 +29,7 @@ sv_visiblemaxplayers 32 // RCON status does not report max players
   "BroadcastAll": 0,
   "ServerAddr":"64.74.97.164:27015"
 ```
-✅ Only works with the updated HLxce daemon v2, which supports both UDP and HTTP log ingestion on the same port.
+✅ Works with the updated HLxce daemon version >= 2.3.4, which supports both async UDP and HTTP log ingestion on the same port.
 
 * Log_Port: The UDP/HTTP port your daemon is listening on (make sure port are open for UDP and TCP)
 
@@ -38,14 +39,6 @@ sv_visiblemaxplayers 32 // RCON status does not report max players
 
 * BroadcastAll: 1 to Emulate old hlstatsx.smx (tf2,css...), 0 for sourcemod csgo
 
-
-## 🧪 Current Status and disclamer
-* 🐣 Early-stage plugin!
-* not everything work.
-* But the core idea is here. I couldn't make everything I wanted. (My first css plugin!)
-* The menu is horrible.
-* Teams color are done by hlstatsx v2 (for now, until i figure out how to do it inside the plugin)
-* Needs community to improve this plugin for the love of HlstatsX/Z!
 
 
 
