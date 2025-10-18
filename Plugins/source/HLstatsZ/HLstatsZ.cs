@@ -729,10 +729,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     if ((userData.Ban & (SourceBans.BanType.Kick | SourceBans.BanType.Ban))>0) continue;
                     name = Instance?.Trunc(target.PlayerName, 20);
                     label = $"{target.Slot} - {name}";
-                    if (player != target)
+                    //if (player != target)
                         builder.Add(label, _ => AdminCMD(player, target));
-                    else
-                        builder.AddNoOp(label);
+                    //else
+                    //    builder.AddNoOp(label);
                 break;
                 case 1:
                     if ((userData.Ban ^ SourceBans.BanType.None)==0) continue;
@@ -856,13 +856,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 SourceBans.UpdateBanUser(target, SourceBans.BanType.Kick, DateTime.UtcNow.AddMinutes(2));
                 SendChatToAll($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {admin.PlayerName} kicked {target.PlayerName} ({reason})");
             break;
-            case "ban":
-                if (target == null || !target.IsValid) return false;
-                _ = SourceBans.WriteBan(target, admin, SourceBans.BanType.Ban, durationSeconds, reason);
-                Server.ExecuteCommand($"kickid {target.UserId} \"Banned {target.PlayerName} ({reason})\"");
-                SourceBans.UpdateBanUser(target, SourceBans.BanType.Ban, durationSeconds == 0 ? DateTime.MaxValue : DateTime.UtcNow.AddSeconds(durationSeconds));
-                SendChatToAll($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {admin.PlayerName} Banned {target.PlayerName} ({reason})");
-            break;
+            //case "ban":
+            //    if (target == null || !target.IsValid) return false;
+            //    _ = SourceBans.WriteBan(target, admin, SourceBans.BanType.Ban, durationSeconds, reason);
+            //    Server.ExecuteCommand($"kickid {target.UserId} \"Banned {target.PlayerName} ({reason})\"");
+            //    SourceBans.UpdateBanUser(target, SourceBans.BanType.Ban, durationSeconds == 0 ? DateTime.MaxValue : DateTime.UtcNow.AddSeconds(durationSeconds));
+            //    SendChatToAll($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {admin.PlayerName} Banned {target.PlayerName} ({reason})");
+            //break;
             case "map": 
                 page = 2;
                 if (args == null) return false;
@@ -881,11 +881,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                                                       $"changelevel {match.MapName}";
                 Server.NextFrame(() => Server.ExecuteCommand($"{command}"));
             break;
+            case "ban":
             case "gag":
             case "mute":
             case "silence":
                 if (target == null || !target.IsValid) return false;
-                type = cmd == "gag" ? SourceBans.BanType.Gag :
+                type = cmd == "ban" ? SourceBans.BanType.Ban :
+                       cmd == "gag" ? SourceBans.BanType.Gag :
                        cmd == "mute" ? SourceBans.BanType.Mute : SourceBans.BanType.Silence;
                 if (cmd == "mute" || cmd == "silence")
                     target.VoiceFlags = VoiceFlags.Muted;
@@ -911,17 +913,24 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             default: break;
         }
 
-        if (Instance!._menuManager._activeMenus.TryGetValue(admin.SteamID, out var menu) && (page == 0 || page == 1)) {
-                Instance!._menuManager.HandleBack(admin,false);
-                Instance!._menuManager.HandleBack(admin,false);
-                Instance!._menuManager.HandleBack(admin,false);
-                AdminPlayer(admin,page);
-        }
+        if (Instance!._menuManager._activeMenus.TryGetValue(admin.SteamID, out var menu))
+        {
 
-        if (Instance!._menuManager._activeMenus.TryGetValue(admin.SteamID, out var mapmenu) && page == 2) {
-            Instance!._menuManager.DestroyMenu(admin);
-        }
+            if (page == 0 || page == 1)
+            {
+                    Instance!._menuManager.HandleBack(admin,false);
+                    Instance!._menuManager.HandleBack(admin,false);
+                    Instance!._menuManager.HandleBack(admin,false);
+                    Instance!._menuManager.HandleBack(admin,false);
+                    AdminPlayer(admin,page);
+            }
 
+           if ( page == 2)
+           {
+               Instance!._menuManager.DestroyMenu(admin);
+           }
+
+        }
         return true;
     }
 
