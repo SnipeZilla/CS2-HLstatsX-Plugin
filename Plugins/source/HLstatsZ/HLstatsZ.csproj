@@ -6,5 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="CounterStrikeSharp.API" Version="*" />
+    <PackageReference Include="MySqlConnector" Version="*" />
   </ItemGroup>
 </Project>

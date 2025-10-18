@@ -5,6 +5,7 @@ using CounterStrikeSharp.API.Core.Plugin;
 using CounterStrikeSharp.API.Modules.Menu;
 using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Entities.Constants;
+using CounterStrikeSharp.API.Modules.Memory;
 
 namespace HLstatsZ;
 
@@ -17,11 +18,11 @@ public class HLZMenuManager
     private readonly Dictionary<ulong, int> _selectedIndex = new();
     private readonly Dictionary<ulong, List<(string Text, Action<CCSPlayerController> Callback)>> _pageOptions = new();
     public readonly Dictionary<ulong, CenterHtmlMenu> _activeMenus = new();
+    public string Nbsp(int n) => new string('\u00A0', n);
 
     private string _lastContent = "";
     private List<string[]>? _lastPages;
 
-    // Unified history: content + page + callbacks
     private readonly Dictionary<ulong, Stack<(string Content, int Page, Dictionary<string, Action<CCSPlayerController>>? Callbacks)>> _menuHistory = new();
 
     public HLZMenuManager(BasePlugin plugin)
@@ -87,6 +88,7 @@ public class HLZMenuManager
 
             _lastPages = PartitionPages(rawLines);
             _lastContent = content;
+            _selectedIndex[steamId] = 0;
         }
 
         var pages = _lastPages!;
@@ -99,7 +101,6 @@ public class HLZMenuManager
 
         page = Math.Clamp(page, 0, totalPages - 1);
 
-        // Only push if new state
         if (pushHistory && (stack.Count == 0 || stack.Peek().Content != content || stack.Peek().Page != page))
         {
             stack.Push((content, page, callbacks));
@@ -116,29 +117,47 @@ public class HLZMenuManager
         if (displayLines.Length == 0)
             _selectedIndex[steamId] = 0;
 
-        string main = $"<font color='#FFFFFF'><b>HLstats</b></font><font color='#FF2A2A'><b>Z</b></font> - " +
-                      $"<font color='#FFFFFF'>{heading} (Page {page + 1}/{totalPages})</font><br>";
+        string main = $"<font color='#FFFFFF'><b>HLstats</b></font><font color='#FF2A2A'><b>Z</b></font>" +
+                      $"<font color='#F0E68C'> - {heading}</font>"+
+                      $"<font color='#FFFACD'> (Page {page + 1}/{totalPages})</font><br>";
 
         var options = new List<(string, Action<CCSPlayerController>)>();
+        //var MaxL = 0;
+        //for (int i = 0; i < displayLines.Length; i++)
+        //{
+        //    var cleanLine = displayLines[i].Trim();
+        //    MaxL = Math.Max(MaxL, cleanLine.Length);
+        //}
 
         for (int i = 0; i < displayLines.Length; i++)
         {
-            var cleanLine = Regex.Replace(displayLines[i], @"^!\d+\s*", "").Trim();
+            //var cleanLine = Regex.Replace(displayLines[i], @"^!\d+\s*", "").Trim();
+            var cleanLine = displayLines[i].Trim();
 
             if (callbacks != null && callbacks.TryGetValue(cleanLine, out var cb))
             {
                 options.Add((cleanLine, cb));
+                if (cb == HLZMenuBuilder.NoOpCallback && i == _selectedIndex[player.SteamID])
+                   _selectedIndex[player.SteamID]++;
             }
             else
             {
-                options.Add((cleanLine, _ => { /* no-op */ }));
+                options.Add((cleanLine, HLZMenuBuilder.NoOpCallback));
                 if (i == _selectedIndex[player.SteamID])
-                    _selectedIndex[player.SteamID]++;
+                   _selectedIndex[player.SteamID]++;
             }
 
+            //cleanLine += Nbsp(MaxL - cleanLine.Length);
+
             main += (i == _selectedIndex[steamId]
-                ? $"<font color='#00FF00'>▶ {cleanLine} ◀</font><br>"
-                : $"<font color='#FFFFFF'>{cleanLine}</font><br>");
+                ? $"<font color='#00FF00'>⫸ {cleanLine} ⫷</font><br>"
+                : $"<font color='#DCDCDC'>{cleanLine}</font><br>");
+        }
+
+        var spaces = 6-displayLines.Length;
+        for (int i = 0; i < spaces; i++)
+        {
+            main += "<br>";
         }
 
         var closeLabel = "[ Close ]";
@@ -151,8 +170,8 @@ public class HLZMenuManager
             _selectedIndex[steamId] = closeIndex;
 
         main += (_selectedIndex[steamId] == closeIndex
-            ? $"<font color='#00FF00'>▶ {closeLabel} ◀</font><br>"
-            : $"<font color='#FF2A2A'>{closeLabel}</font><br>");
+            ? $"<font color='#FFFACD' class='fontSize-sm'>WASD Nav{Nbsp(3)}</font><font color='#00FF00'>⫸ {closeLabel} ⫷</font><font color='#FFFACD' class='fontSize-sm'>{Nbsp(1)}E Select{Nbsp(3)}</font><br>"
+            : $"<font color='#FFFACD' class='fontSize-sm'>WASD Nav{Nbsp(8)}</font><font color='#FF2A2A'>{closeLabel}</font><font color='#FFFACD' class='fontSize-sm'>{Nbsp(6)}E Select{Nbsp(3)}</font><br>");
 
         options.Add((closeLabel, p => DestroyMenu(p)));
 
@@ -180,7 +199,7 @@ public class HLZMenuManager
         _menuHistory.Remove(player.SteamID);
     }
 
-    public void HandleBack(CCSPlayerController player)
+    public void HandleBack(CCSPlayerController player, bool open = true)
     {
         var steamId = player.SteamID;
         if (!_menuHistory.TryGetValue(steamId, out var stack) || stack.Count <= 1)
@@ -188,8 +207,8 @@ public class HLZMenuManager
 
         stack.Pop(); // remove current
         var (prevContent, prevPage, prevCallbacks) = stack.Peek();
-
-        Open(player, prevContent, prevPage, prevCallbacks, pushHistory: false);
+        if (open)
+            Open(player, prevContent, prevPage, prevCallbacks, pushHistory: false);
     }
 
     public void HandlePage(CCSPlayerController player, int delta)
@@ -214,10 +233,21 @@ public class HLZMenuManager
         if (!_selectedIndex.TryGetValue(steamId, out var index))
             index = 0;
 
-        var count = (_pageOptions.TryGetValue(steamId, out var opts) ? opts.Count : 1);
-        if (count == 0) return;
+        if (!_pageOptions.TryGetValue(steamId, out var opts) || opts.Count == 0)
+            return;
 
-        index = (index + delta + count) % count;
+        var count = opts.Count;
+        var startIndex = index;
+
+        for (int i = 0; i < count; i++)
+        {
+            index = (index + delta + count) % count;
+
+            var (_, cb) = opts[index];
+            if (cb != HLZMenuBuilder.NoOpCallback)
+                break;
+        }
+
         _selectedIndex[steamId] = index;
 
         var page = _menuPages.TryGetValue(steamId, out var p) ? p : 0;
@@ -228,6 +258,7 @@ public class HLZMenuManager
             Open(player, content, page, callbacks, pushHistory: false);
         }
     }
+
 
     public void HandleSelect(CCSPlayerController player)
     {
@@ -240,5 +271,102 @@ public class HLZMenuManager
             var (_, cb) = options[index];
             cb(player);
         }
+    }
+}
+
+public class HLZMenuBuilder
+{
+    private const int MaxLines = 8;
+    private const int ReservedLines = 2; // title + [Close]
+    private const int MaxItemsPerPage = MaxLines - ReservedLines;
+    public int MaxL1 = 0;
+    public int MaxL2 = 0;
+    private readonly string _title;
+    public readonly List<(string Label, Action<CCSPlayerController> Callback)> _items = new();
+    public static readonly Action<CCSPlayerController> NoOpCallback = _ => { };
+    private bool _Numbered = true;
+
+    public HLZMenuBuilder(string title)
+    {
+        _title = title;
+    }
+
+    public HLZMenuBuilder Add(string label, Action<CCSPlayerController> callback)
+    {
+        _items.Add((label, callback));
+        return this;
+    }
+
+    public HLZMenuBuilder AddNoOp(string label)
+    {
+        _items.Add((label, NoOpCallback));
+        return this;
+    }
+
+    public HLZMenuBuilder WithoutNumber()
+    {
+        _Numbered = false;
+        return this;
+    }
+
+    public void Open(CCSPlayerController player, HLZMenuManager menuManager)
+    {
+        var page = 0;
+        var index = 1;
+        var content = $"->{page + 1} - {_title}";
+        var callbacks = new Dictionary<string, Action<CCSPlayerController>>(StringComparer.OrdinalIgnoreCase);
+
+        for (int i = 0; i < _items.Count; i++)
+        {
+            if (i > 0 && i % MaxItemsPerPage == 0)
+            {
+                page++;
+                content += $"\n->{page + 1} - {_title}";
+                index = 1;
+            }
+
+            var (label, cb) = _items[i];
+            var line = _Numbered? $"{index}. {label}" : $"{label}";
+            content += $"\n{line}";
+            callbacks.Add(line, cb);
+            index++;
+        }
+
+        menuManager.Open(player, content, 0, callbacks);
+    }
+
+}
+
+public static class CCSPlayerControllerExtensions
+{
+    public static void Freeze(this CCSPlayerController player, int mode = 2)
+    {
+        var pawn = player.PlayerPawn.Value;
+        if (pawn == null) return;
+
+        switch (mode)
+        {
+            case 1: pawn.ChangeMovetype(MoveType_t.MOVETYPE_OBSOLETE); break;
+            case 2: pawn.ChangeMovetype(MoveType_t.MOVETYPE_NONE); break;
+            case 3: pawn.ChangeMovetype(MoveType_t.MOVETYPE_INVALID); break;
+            default: pawn.ChangeMovetype(MoveType_t.MOVETYPE_NONE); break;
+        }
+    }
+
+    public static void UnFreeze(this CCSPlayerController player)
+    {
+        var pawn = player.PlayerPawn.Value;
+        if (pawn == null) return;
+
+        pawn.ChangeMovetype(MoveType_t.MOVETYPE_WALK);
+    }
+
+    private static void ChangeMovetype(this CBasePlayerPawn pawn, MoveType_t movetype)
+    {
+        pawn.MoveType = movetype;
+        Schema.SetSchemaValue(
+            pawn.Handle, "CBaseEntity", "m_nActualMoveType", movetype
+        );
+        Utilities.SetStateChanged(pawn, "CBaseEntity", "m_MoveType");
     }
 }
