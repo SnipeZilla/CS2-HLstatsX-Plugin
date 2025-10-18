@@ -729,10 +729,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     if ((userData.Ban & (SourceBans.BanType.Kick | SourceBans.BanType.Ban))>0) continue;
                     name = Instance?.Trunc(target.PlayerName, 20);
                     label = $"{target.Slot} - {name}";
-                    //if (player != target)
+                    if (player != target)
                         builder.Add(label, _ => AdminCMD(player, target));
-                    //else
-                        //builder.AddNoOp(label);
+                    else
+                        builder.AddNoOp(label);
                 break;
                 case 1:
                     if ((userData.Ban ^ SourceBans.BanType.None)==0) continue;
@@ -926,8 +926,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     }
 
     // ------------------ Event Handler ------------------
-<<<<<<< HEAD
-=======
     public HookResult OnPlayerChat(EventPlayerChat @event, GameEventInfo info)
     {
         var player = Utilities.GetPlayerFromUserid(@event.Userid);
@@ -977,9 +975,9 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
 
         return HookResult.Continue;
+
     }
 
->>>>>>> 319401affd522e3e467e2ac742bce38dd6df5281
     public HookResult OnRoundMvp(EventRoundMvp @event, GameEventInfo info)
     {
         var reason = @event.Reason;
