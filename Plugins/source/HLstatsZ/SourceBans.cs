@@ -64,9 +64,6 @@ public class SourceBans
 
         _logger?.LogInformation("[HLstatsZ] SourceBans enabled. host={Host} db={Db} prefix={Prefix}", cfg.Host, cfg.Database, _prefix);
 
-        _ = GetSid();
-        PrimeConnectedAdmins();
-
         _cleanupTimer = new Timer(_ => CleanupExpiredUsers(), null, TimeSpan.Zero, TimeSpan.FromMinutes(1));
 
 
@@ -504,7 +501,7 @@ public class SourceBans
         {
             if (player?.IsValid == true)
             {
-                _ = isAdmin(player);
+                isAdmin(player);
             }
         }
     }

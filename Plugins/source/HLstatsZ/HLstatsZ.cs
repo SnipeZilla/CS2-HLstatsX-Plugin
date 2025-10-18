@@ -77,16 +77,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     public void OnConfigParsed(HLstatsZMainConfig config)
     {
         Config = config;
-        var serverAddr = Config.HLstatsZ.ServerAddr;
-        if (string.IsNullOrWhiteSpace(serverAddr))
-        {
-            var hostPort = ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 27015;
-            var serverIP = GetLocalIPAddress();
-            serverAddr = $"{serverIP}:{hostPort}";
-            Config.HLstatsZ.ServerAddr=serverAddr;
-        }
-        SourceBans.serverAddr = serverAddr;
-        SourceBans.Init(Config.SourceBans, Logger);
 
     }
 
@@ -109,9 +99,19 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         AddCommandListener(null, ComamndListenerHandler, HookMode.Pre);
 
         _menuManager = new HLZMenuManager(this);
+
+        var serverAddr = Config.HLstatsZ.ServerAddr;
+        if (string.IsNullOrWhiteSpace(serverAddr))
+        {
+            var hostPort = ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 27015;
+            var serverIP = GetLocalIPAddress();
+            serverAddr = $"{serverIP}:{hostPort}";
+            Config.HLstatsZ.ServerAddr=serverAddr;
+        }
+        SourceBans.serverAddr = serverAddr;
         SourceBans.Init(Config.SourceBans, Logger);
-        //_ = SourceBans.WarmupAsync();
-        //SourceBans.PrimeConnectedAdmins();
+        _ = SourceBans.GetSid();
+        SourceBans.PrimeConnectedAdmins();
     }
 
     public override void Unload(bool hotReload)
