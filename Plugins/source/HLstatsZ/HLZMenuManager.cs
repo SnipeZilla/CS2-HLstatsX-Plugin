@@ -152,12 +152,15 @@ public class HLZMenuManager
             main += (i == _selectedIndex[steamId]
                 ? $"<font color='#00FF00'>⫸ {cleanLine} ⫷</font><br>"
                 : $"<font color='#DCDCDC'>{cleanLine}</font><br>");
+<<<<<<< HEAD
         }
 
         var spaces = 6-displayLines.Length;
         for (int i = 0; i < spaces; i++)
         {
             main += "<br>";
+=======
+>>>>>>> 319401affd522e3e467e2ac742bce38dd6df5281
         }
 
         var closeLabel = "[ Close ]";
@@ -170,8 +173,13 @@ public class HLZMenuManager
             _selectedIndex[steamId] = closeIndex;
 
         main += (_selectedIndex[steamId] == closeIndex
+<<<<<<< HEAD
             ? $"<font color='#FFFACD' class='fontSize-sm'>WASD Nav{Nbsp(3)}</font><font color='#00FF00'>⫸ {closeLabel} ⫷</font><font color='#FFFACD' class='fontSize-sm'>{Nbsp(1)}E Select{Nbsp(3)}</font><br>"
             : $"<font color='#FFFACD' class='fontSize-sm'>WASD Nav{Nbsp(8)}</font><font color='#FF2A2A'>{closeLabel}</font><font color='#FFFACD' class='fontSize-sm'>{Nbsp(6)}E Select{Nbsp(3)}</font><br>");
+=======
+            ? $"<font color='#00FF00'>⫸ {closeLabel} ⫷</font><br>"
+            : $"<font color='#FF2A2A'>{closeLabel}</font><br>");
+>>>>>>> 319401affd522e3e467e2ac742bce38dd6df5281
 
         options.Add((closeLabel, p => DestroyMenu(p)));
 

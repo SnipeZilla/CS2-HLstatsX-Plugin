@@ -926,6 +926,60 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     }
 
     // ------------------ Event Handler ------------------
+<<<<<<< HEAD
+=======
+    public HookResult OnPlayerChat(EventPlayerChat @event, GameEventInfo info)
+    {
+        var player = Utilities.GetPlayerFromUserid(@event.Userid);
+        if (player == null || !player.IsValid) return HookResult.Continue;
+
+        var originalMessage = @event.Text?.Trim() ?? "";
+        var message = originalMessage.ToLower();
+
+        if (string.IsNullOrEmpty(message)) return HookResult.Continue;
+
+        bool isPrefixed = message.StartsWith("/") || message.StartsWith("!");
+        if (isPrefixed)
+            message = message.Substring(1); // Strip prefix for command handling
+
+            var validCommands = new[] {
+                "top10", "rank", "session", "weaponstats",
+                "accuracy", "next", "clans", "commands", "hlx_menu", "menu"
+            };
+
+            if (validCommands.Contains(message) || Regex.IsMatch(message, @"^top\d{1,2}$"))
+            {
+
+                if (message == "hlx_menu" || message == "menu")
+                {
+                    var content = "->1 - Menu\n1. Rank\n2. TOP 10\n3. Next Player\n4. Admin";
+                    var callbacks = new Dictionary<string, Action<CCSPlayerController>>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        { "1. Rank", p => _ = SendLog(p, "rank", "say") },
+                        { "2. TOP 10", p => _ = SendLog(p, "top10", "say") },
+                        { "3. Next Player", p => _ = SendLog(p, "next", "say") },
+                        { "4. Admin", _ => { /* no-op */ } }
+                    };
+                    Instance?._menuManager.Open(player, content, 0, callbacks);
+                    return HookResult.Handled;
+                }
+
+                if (isPrefixed)
+                {
+                    _ = SendLog(player, message, "say");
+                    return HookResult.Handled;
+                }
+
+                DispatchHLXEvent("psay", player, message);
+                return HookResult.Handled;
+
+            }
+
+
+        return HookResult.Continue;
+    }
+
+>>>>>>> 319401affd522e3e467e2ac742bce38dd6df5281
     public HookResult OnRoundMvp(EventRoundMvp @event, GameEventInfo info)
     {
         var reason = @event.Reason;
