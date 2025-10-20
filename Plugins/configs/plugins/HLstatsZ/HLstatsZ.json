@@ -1,27 +1,7 @@
 {
-  "HLstatsZ" : {
-    "Log_Address": "127.0.0.1",
-    "Log_Port": 27500,
-    "BroadcastAll": 0,
-    "ServerAddr":""
-  },
-  "SourceBans" : {
-    "Host": "",
-    "Port": 3306,
-    "Database" : "",
-    "Prefix" : "sb",
-    "User" :"",
-    "Password": "",
-    "MapCycle": {
-      "Admin": {
-        "Maps": [ ],
-        "WorkShop": { }
-      },
-      "Public": {
-        "Maps": [ ],
-        "WorkShop": { }
-      }
-    }
-  },
-  "Version": 2
+  "Log_Address": "127.0.0.1",
+  "Log_Port": 27500,
+  "BroadcastAll": 0,
+  "ServerAddr":"",
+  "Version": 1
 }
