@@ -11,7 +11,6 @@ This plugin extends CounterStrikeSharp to enable full(mostly) HLstatsX:CE suppor
 - 🚀 Optimized for modern CS2 servers and the revamped HLstatsX ecosystem
 - 🧩️ Minimal performance and Fully configurable
 - 😻 WASDE menu
-- ⚙️ CS2 x-server.cfg:
 <img width="254" height="150" alt="image" src="https://github.com/user-attachments/assets/2a2de88a-bef5-471b-9b3e-59f824e911b0" />
 <img width="255" height="154" alt="image" src="https://github.com/user-attachments/assets/d1b60635-650d-4334-a0ca-2149589f1bef" />
 <img width="253" height="152" alt="image" src="https://github.com/user-attachments/assets/3f469803-93da-484b-87f1-08316cee8a76" />
