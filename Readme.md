@@ -39,7 +39,6 @@ sv_visiblemaxplayers 32 // RCON status does not report max players
 
 * ServerAddr: force ip:port if you see not authorized in the log. still highly recommended to force log on known ip:port
 
-* BroadcastAll: 1 to Emulate old hlstatsx.smx (tf2,css...), 0 for sourcemod csgo
 
 
 
