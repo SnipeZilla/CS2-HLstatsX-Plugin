@@ -41,7 +41,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.4.0";
+    public override string ModuleVersion => "1.4.1";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -216,14 +216,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
     public void BroadcastCenterMessage(string message, float durationInSeconds = 5.0f)
     {
-        message = message.Replace(
-            "HLstatsZ",
-            "<font color='#FFFFFF'>HLstats</font><font color='#FF2A2A'>Z</font>");
-        message = message.Replace(
-            "HLstatsX:CE",
-            "<font color='#FFFFFF'>HLstats</font><font color='#3AA0FF'>X</font><font color='#FFFFFF'>:CE</font>");
+        string messageHTML = message.Replace("HLstatsZ","<font color='#FFFFFF'>HLstats</font><font color='#FF2A2A'>Z</font>");
+        string messageCHAT = message.Replace("HLstatsZ", "HLstats{ChatColors.Red}Z{ChatColors.Default}");
 
-        string htmlContent = $"<font color='#FFFFFF'>{message}</font>";
+        string htmlContent = $"<font color='#FFFFFF'>{messageHTML}</font>";
 
         var menu = new CenterHtmlMenu(htmlContent, this)
         {
@@ -231,14 +227,25 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         };
 
         foreach (var p in Utilities.GetPlayers())
-            if (p?.IsValid == true && !_menuManager._activeMenus.TryGetValue(p.SteamID, out var mmenu))
-                menu.Open(p!);
+        {
+            if (p?.IsValid == true && p?.IsBot == false)
+            {
+                if (!_menuManager._activeMenus.ContainsKey(p.SteamID))
+                {
+                    menu.Open(p);
+                } else {
+                    p.PrintToChat($"{messageCHAT}");
+                }
+            }
+        }
 
         _ = new GameTimer(durationInSeconds, () =>
         {
             foreach (var p in Utilities.GetPlayers())
-                if (p?.IsValid == true && !_menuManager._activeMenus.TryGetValue(p.SteamID, out var mmenu))
-                    MenuManager.CloseActiveMenu(p!);
+            {
+                if (p?.IsValid == true && p?.IsBot == false && !_menuManager._activeMenus.ContainsKey(p.SteamID))
+                    MenuManager.CloseActiveMenu(p);
+            }
         });
     }
     public static void ShowHintMessage(CCSPlayerController player, string message)
@@ -278,8 +285,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             var builder = new HLZMenuBuilder("Main Menu");
 
             builder.Add("Rank", p => _ = SendLog(p, "rank", "say"));
-            builder.Add("TOP 10", p => _ = SendLog(p, "top10", "say"));
             builder.Add("Next Rank", p => _ = SendLog(p, "next", "say"));
+            builder.Add("TOP 10", p => _ = SendLog(p, "top10", "say"));
 
             builder.Open(player, Instance!._menuManager);
 
@@ -374,56 +381,45 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     }
 
     // --------------------- Menu ---------------------
-    private const int PollInterval = 2; 
-    private int _tickCounter;
-    private readonly Dictionary<ulong, PlayerButtons> _lastButtons = new();
+    private const int PollInterval = 6; // 4~80ms 6~120ms
+    private int _tickCounter = 0;
 
-    private void OnTick() {
+    private void OnTick()
+   {
         if (_menuManager._activeMenus.Count == 0) return;
-        if (++_tickCounter % PollInterval != 0)
-            return;
-        foreach (var player in Utilities.GetPlayers())
+        if (++_tickCounter % PollInterval != 0) return;
+        _tickCounter=0;
+
+        foreach (var kvp in _menuManager._activeMenus.ToList())
         {
-            if (!_menuManager._activeMenus.TryGetValue(player.SteamID, out var menu)) continue;
-            var steamId = player.SteamID;
+            var steamId = kvp.Key;
+            var (player, menu) = kvp.Value;
+
             if (player == null || !player.IsValid)
             {
                 _menuManager.DestroyMenu(player!);
-                _lastButtons.Remove(steamId);
                 continue;
             }
             var current = player.Buttons;
-            var last = _lastButtons.TryGetValue(steamId, out var prev) ? prev : PlayerButtons.Cancel;
+            var last = _menuManager._lastButtons.TryGetValue(steamId, out var prev) ? prev : PlayerButtons.Cancel;
 
             if (current.HasFlag(PlayerButtons.Forward) && !last.HasFlag(PlayerButtons.Forward))
-                HandleWasdPress(player, "W");
+                _menuManager.HandleWasdPress(player, "W");
 
             if (current.HasFlag(PlayerButtons.Back) && !last.HasFlag(PlayerButtons.Back))
-                HandleWasdPress(player, "S");
+                _menuManager.HandleWasdPress(player, "S");
 
             if (current.HasFlag(PlayerButtons.Moveleft) && !last.HasFlag(PlayerButtons.Moveleft))
-                HandleWasdPress(player, "A");
+                _menuManager.HandleWasdPress(player, "A");
 
             if (current.HasFlag(PlayerButtons.Moveright) && !last.HasFlag(PlayerButtons.Moveright))
-                HandleWasdPress(player, "D");
+                _menuManager.HandleWasdPress(player, "D");
 
             if (current.HasFlag(PlayerButtons.Use) && !last.HasFlag(PlayerButtons.Use))
-                HandleWasdPress(player, "E");
+                _menuManager.HandleWasdPress(player, "E");
 
-            _lastButtons[steamId] = current;
+            _menuManager._lastButtons[steamId] = current;
 
-        }
-    }
-
-    private void HandleWasdPress(CCSPlayerController player, string key)
-    {
-        switch (key)
-        {
-            case "W": _menuManager.HandleNavigation(player,-1); break;
-            case "S": _menuManager.HandleNavigation(player,+1); break;
-            case "A": _menuManager.HandleBack(player); break;
-            case "D": _menuManager.HandlePage(player,+1); break;
-            case "E": _menuManager.HandleSelect(player); break;
         }
     }
 
