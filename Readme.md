@@ -11,7 +11,9 @@ This plugin extends CounterStrikeSharp to enable full(mostly) HLstatsX:CE suppor
 - 🚀 Optimized for modern CS2 servers and the revamped HLstatsX ecosystem
 - 🧩️ Minimal performance and Fully configurable
 - 😻 WASDE menu
-- ⚙️ CS2 x-server.cfg:
+<img width="254" height="150" alt="image" src="https://github.com/user-attachments/assets/2a2de88a-bef5-471b-9b3e-59f824e911b0" />
+<img width="255" height="154" alt="image" src="https://github.com/user-attachments/assets/d1b60635-650d-4334-a0ca-2149589f1bef" />
+<img width="253" height="152" alt="image" src="https://github.com/user-attachments/assets/3f469803-93da-484b-87f1-08316cee8a76" />
 
 ## ⚙️ Config
 # Easy server setup—just two config changes
@@ -31,13 +33,12 @@ sv_visiblemaxplayers 32 // RCON status does not report max players
 ```
 ✅ Works with the updated HLxce daemon version >= 2.3.4, which supports both async UDP and HTTP log ingestion on the same port.
 
-* Log_Port: The UDP/HTTP port your daemon is listening on (make sure port are open for UDP and TCP)
+* Log_Port: The UDP/HTTP port your daemon is listening on (port needs to be open for both UDP and TCP)
 
 * BroadcastAll: 1 to Emulate old hlstatsx.smx (tf2,css...), 0 for sourcemod csgo/cs2
 
 * ServerAddr: force ip:port if you see not authorized in the log. still highly recommended to force log on known ip:port
 
-* BroadcastAll: 1 to Emulate old hlstatsx.smx (tf2,css...), 0 for sourcemod csgo
 
 
 
