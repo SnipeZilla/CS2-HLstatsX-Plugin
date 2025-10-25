@@ -41,7 +41,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.4.1";
+    public override string ModuleVersion => "1.4.2";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -217,7 +217,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     public void BroadcastCenterMessage(string message, float durationInSeconds = 5.0f)
     {
         string messageHTML = message.Replace("HLstatsZ","<font color='#FFFFFF'>HLstats</font><font color='#FF2A2A'>Z</font>");
-        string messageCHAT = message.Replace("HLstatsZ", "HLstats{ChatColors.Red}Z{ChatColors.Default}");
+        string messageCHAT = message.Replace("HLstatsZ", $"HLstats{ChatColors.Red}Z{ChatColors.Default}");
 
         string htmlContent = $"<font color='#FFFFFF'>{messageHTML}</font>";
 

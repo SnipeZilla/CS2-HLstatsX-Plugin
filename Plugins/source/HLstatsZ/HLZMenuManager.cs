@@ -15,13 +15,14 @@ public class HLZMenuManager
 
     private readonly Dictionary<ulong, int> _menuPages = new();
     private readonly Dictionary<ulong, int> _selectedIndex = new();
-    private readonly Dictionary<ulong, List<(string Text, Action<CCSPlayerController> Callback)>> _pageOptions = new();
-    public readonly Dictionary<ulong, (CCSPlayerController Player, CenterHtmlMenu Menu)> _activeMenus = new();
     public readonly Dictionary<ulong, PlayerButtons> _lastButtons = new();
+    public readonly Dictionary<ulong, (CCSPlayerController Player, CenterHtmlMenu Menu)> _activeMenus = new();
+    private readonly Dictionary<ulong, List<(string Text, Action<CCSPlayerController> Callback)>> _pageOptions = new();
+    private readonly Dictionary<ulong, Stack<(string Content, int Page, Dictionary<string, Action<CCSPlayerController>>? Callbacks)>> _menuHistory = new();
 
+    public int MaxLines = 6;  // 6+2 with title and [Close]
     public string Nbsp(int n) => new string('\u00A0', n);
 
-    private readonly Dictionary<ulong, Stack<(string Content, int Page, Dictionary<string, Action<CCSPlayerController>>? Callbacks)>> _menuHistory = new();
 
     public HLZMenuManager(BasePlugin plugin)
     {
@@ -38,6 +39,23 @@ public class HLZMenuManager
             case "D": HandlePage(player,+1); break;
             case "E": HandleSelect(player); break;
         }
+    }
+
+    private static string NormalizeHeading(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return "Stats";
+
+        var s = raw.Trim();
+
+        if (s.Length > 3 && s[0] == '-' && s[1] == '>' && char.IsDigit(s[2]))
+        {
+            int dashIndex = s.IndexOf('-', 3);
+            if (dashIndex >= 0 && dashIndex + 1 < s.Length)
+                s = s.Substring(dashIndex + 1).Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(s) ? "Stats" : s;
     }
 
     private static List<string[]> PartitionPages(string[] lines)
@@ -60,22 +78,47 @@ public class HLZMenuManager
         return pages.Select(p => p.ToArray()).ToList();
     }
 
-    private static string NormalizeHeading(string? raw)
+    private static List<string> NormalizeContent(string content, int maxLinesPerPage = 6)
     {
-        if (string.IsNullOrWhiteSpace(raw))
-            return "Stats";
+        var lines = content.Replace("\r\n", "\n").Replace("\r", "\n").Replace("\\n", "\n")
+                           .Split('\n')
+                           .Select(l => l.Trim())
+                           .Where(l => !string.IsNullOrWhiteSpace(l))
+                           .ToArray();
 
-        var s = raw.Trim();
+        var output = new List<string>();
+        int page = 1;
+        int lineCount = 0;
+        string Heading = "Stats";
 
-        if (s.Length > 3 && s[0] == '-' && s[1] == '>' && char.IsDigit(s[2]))
+        foreach (var line in lines)
         {
-            int dashIndex = s.IndexOf('-', 3);
-            if (dashIndex >= 0 && dashIndex + 1 < s.Length)
-                s = s.Substring(dashIndex + 1).Trim();
-        }
+            if (line.StartsWith("->") && line.Length > 3 && char.IsDigit(line[2]))
+            {
+                output.Add(line);
+                lineCount = 0;
+                int dashIndex = line.IndexOf('-', 3);
+                if (dashIndex >= 0 && dashIndex + 1 < line.Length)
+                    Heading = line.Substring(dashIndex + 1).Trim();
+                continue;
+            }
 
-        return string.IsNullOrWhiteSpace(s) ? "Stats" : s;
-    }
+            if (lineCount == 0 && Heading == "Stats")
+                output.Add($"->{page} - {Heading}");
+
+            if (lineCount >= maxLinesPerPage)
+            {
+                page++;
+                output.Add($"->{page} - {Heading}");
+                lineCount = 0;
+            }
+
+            output.Add(line);
+            lineCount++;
+        }
+        return output;
+
+     }
 
     public void Open(CCSPlayerController player, string content, int page = 0,
                      Dictionary<string, Action<CCSPlayerController>>? callbacks = null, bool pushHistory = true)
@@ -87,16 +130,12 @@ public class HLZMenuManager
             _menuHistory[steamId] = stack;
         }
 
-         var rawLines = content.Replace("\r\n", "\n").Replace("\r", "\n").Replace("\\n", "\n")
-                               .Split('\n')
-                               .Select(l => l.Trim())
-                               .Where(l => !string.IsNullOrWhiteSpace(l))
-                               .ToArray();
-
-        var _lastPages = PartitionPages(rawLines);
+        var rawLines = NormalizeContent(content,MaxLines);
+        var _lastPages = PartitionPages(rawLines.ToArray());
 
         var pages = _lastPages!;
         var totalPages = pages.Count;
+
         if (totalPages == 0)
         {
             DestroyMenu(player);
@@ -178,8 +217,8 @@ public class HLZMenuManager
             _selectedIndex[steamId] = closeIndex;
 
         main += (_selectedIndex[steamId] == closeIndex
-            ? $"<font color='#FFFACD' class='fontSize-sm'>WASD Nav{Nbsp(3)}</font><font color='#00FF00'>⫸ {closeLabel} ⫷</font><font color='#FFFACD' class='fontSize-sm'>{Nbsp(1)}E Select{Nbsp(3)}</font><br>"
-            : $"<font color='#FFFACD' class='fontSize-sm'>WASD Nav{Nbsp(8)}</font><font color='#FF2A2A'>{closeLabel}</font><font color='#FFFACD' class='fontSize-sm'>{Nbsp(6)}E Select{Nbsp(3)}</font><br>");
+            ? $"<font color='#FFFACD' class='fontSize-sm'>WASD Nav</font>{Nbsp(3)}<font color='#00FF00'>⫸ {closeLabel} ⫷</font>{Nbsp(3)}<font color='#FFFACD' class='fontSize-sm'>E Select</font>{Nbsp(3)}<br>"
+            : $"<font color='#FFFACD' class='fontSize-sm'>WASD Nav</font>{Nbsp(8)}<font color='#FF2A2A'>{closeLabel}</font>{Nbsp(8)}<font color='#FFFACD' class='fontSize-sm'>E Select</font>{Nbsp(3)}<br>");
 
         options.Add((closeLabel, p => DestroyMenu(p)));
 
@@ -317,9 +356,6 @@ public class HLZMenuManager
 
 public class HLZMenuBuilder
 {
-    private const int MaxLines = 8;
-    private const int ReservedLines = 2; // title + [Close]
-    private const int MaxItemsPerPage = MaxLines - ReservedLines;
     private readonly string _title;
     public readonly List<(string Label, Action<CCSPlayerController> Callback)> _items = new();
     public static readonly Action<CCSPlayerController> NoOpCallback = _ => { };
@@ -350,6 +386,7 @@ public class HLZMenuBuilder
 
     public void Open(CCSPlayerController player, HLZMenuManager menuManager)
     {
+        int MaxLines = menuManager.MaxLines;
         var page = 0;
         var index = 1;
         var content = $"->{page + 1} - {_title}";
@@ -357,7 +394,7 @@ public class HLZMenuBuilder
 
         for (int i = 0; i < _items.Count; i++)
         {
-            if (i > 0 && i % MaxItemsPerPage == 0)
+            if (i > 0 && i % MaxLines == 0)
             {
                 page++;
                 content += $"\n->{page + 1} - {_title}";
