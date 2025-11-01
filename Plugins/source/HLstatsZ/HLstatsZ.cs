@@ -41,7 +41,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.4.2";
+    public override string ModuleVersion => "1.4.3";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -132,30 +132,27 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
     public static void DispatchHLXEvent(string type, CCSPlayerController? player, string message)
     {
-        if (Instance == null) return;
+        if (Instance == null || player == null) return;
 
         switch (type)
         {
             case "psay":
-                if (player != null) SendPrivateChat(player, message);
-                else Instance?.Logger.LogInformation($"Player null from message: {message}");
+                SendPrivateChat(player, message);
                 break;
             case "csay":
                 Instance.BroadcastCenterMessage(message);
                 break;
             case "msay":
-                if (player != null && Instance?._menuManager != null)
-                    Instance._menuManager.Open(player, message);
+                Instance._menuManager.Open(player,message);
                 break;
             case "say":
                 SendChatToAll(message);
                 break;
             case "hint":
-                if (player != null) ShowHintMessage(player, message);
+                ShowHintMessage(player, message);
                 break;
             default:
-                if (player != null) player.PrintToChat($"Unknown HLX type: {type}");
-                else Instance?.Logger.LogInformation($"Unknown HLX type: {type}"); 
+                player.PrintToChat($"Unknown HLX type: {type}");
                 break;
         }
     }
@@ -190,16 +187,18 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         // Name
         var name = NormalizeName(token);
 
-        var exactMatches = Utilities.GetPlayers()
-            .Where(p => p?.IsValid == true &&
-                        NormalizeName(p.PlayerName) == name)
-            .ToList();
+        var players = Utilities.GetPlayers().Where(p => p?.IsValid == true).ToList();
 
-        if (exactMatches.Count == 1)
-            return exactMatches[0];
+        var exactMatches = players.Where(p => NormalizeName(p.PlayerName) == name).ToList();
+        if (exactMatches.Count == 1) return exactMatches[0];
+        if (exactMatches.Count > 1) return null;
 
-        if (exactMatches.Count > 1)
-            return null;
+        var prefixMatches = players.Where(p => NormalizeName(p.PlayerName).StartsWith(name)).ToList();
+        if (prefixMatches.Count == 1) return prefixMatches[0];
+        if (prefixMatches.Count > 1) return null;
+        var containsMatches = players.Where(p => NormalizeName(p.PlayerName).Contains(name)).ToList();
+        if (containsMatches.Count == 1) return containsMatches[0];
+        if (containsMatches.Count > 1) return null;
 
         return null;
     }
@@ -211,13 +210,20 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
     public static void SendChatToAll(string message)
     {
-        Server.PrintToChatAll($"{message}");
+        var players = Utilities.GetPlayers();
+        foreach (var player in players)
+        {
+            if (player?.IsValid == true && player?.IsBot == false)
+            {
+                player.PrintToChat($"{message}");
+            }
+        }
     }
 
     public void BroadcastCenterMessage(string message, float durationInSeconds = 5.0f)
     {
         string messageHTML = message.Replace("HLstatsZ","<font color='#FFFFFF'>HLstats</font><font color='#FF2A2A'>Z</font>");
-        string messageCHAT = message.Replace("HLstatsZ", $"HLstats{ChatColors.Red}Z{ChatColors.Default}");
+        string messageCHAT = message.Replace("HLstatsZ", "HLstats\x07Z\x01");
 
         string htmlContent = $"<font color='#FFFFFF'>{messageHTML}</font>";
 
@@ -294,14 +300,22 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         }
 
         // HLstatsZ -> Daemon
-        var Cmds = new[] {"top10","rank","session","weaponstats","accuracy","next","clans"};
-
-        if (silenced && parts.Length == 1 && (Cmds.Contains(cmd, StringComparer.OrdinalIgnoreCase) || Regex.IsMatch(cmd, @"^top\d{1,2}$", RegexOptions.CultureInvariant)))
+        if (silenced && parts.Length == 1)
         {
+            switch (cmd)
+        {
+                case "rank":
+                case "next":
+                case "top10":
+                case "top20":
+                case "top30":
+                case "session":
             _ = SendLog(player, cmd, "say");
-            return HookResult.Handled;
+                return HookResult.Handled;
+                default:
+                break;
+            }
         }
-
         return HookResult.Continue;
     }
 
@@ -439,7 +453,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             11 => "with HE grenade",
             14 => "with a clutch defuse",
             15 => "with most kills",
-            _  => $"with event {reason}"
+            _  => $"with best overall"
         };
 
         _ = SendLog(player, $"round_mvp {reasonText}", "triggered");
