@@ -41,7 +41,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.5.0";
+    public override string ModuleVersion => "1.6.0";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -59,7 +59,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         RegisterListener<Listeners.OnTick>(OnTick);
 
         RegisterEventHandler<EventRoundMvp>(OnRoundMvp);
-        RegisterEventHandler<EventBombAbortplant>(OnBombAbortplant);
+        RegisterEventHandler<EventBombAbortdefuse>(OnBombAbortdefuse);
         RegisterEventHandler<EventBombDefused>(OnBombDefused);
         RegisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect);
         RegisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
@@ -84,7 +84,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         RemoveListener<Listeners.OnTick>(OnTick);
 
         DeregisterEventHandler<EventRoundMvp>(OnRoundMvp);
-        DeregisterEventHandler<EventBombAbortplant>(OnBombAbortplant);
+        DeregisterEventHandler<EventBombAbortdefuse>(OnBombAbortdefuse);
         DeregisterEventHandler<EventBombDefused>(OnBombDefused);
         DeregisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect);
         DeregisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
@@ -132,33 +132,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         }
     }
 
-    public static void DispatchHLXEvent(string type, CCSPlayerController? player, string message)
-    {
-        if (Instance == null || player == null) return;
-
-        switch (type)
-        {
-            case "psay":
-                SendPrivateChat(player, message);
-                break;
-            case "csay":
-                Instance.BroadcastCenterMessage(message);
-                break;
-            case "msay":
-                Instance._menuManager.Open(player,message);
-                break;
-            case "say":
-                SendChatToAll(message);
-                break;
-            case "hint":
-                ShowHintMessage(player, message);
-                break;
-            default:
-                player.PrintToChat($"Unknown HLX type: {type}");
-                break;
-        }
-    }
-
     private static string NormalizeName(string name)
     {
         var normalized = name.ToLowerInvariant();
@@ -174,12 +147,12 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         string? token = pl as string ?? pl?.ToString();
         if (string.IsNullOrWhiteSpace(token)) return null;
 
-        // #userid
-        if (token[0] == '#' && int.TryParse(token.AsSpan(1), out var uid))
+        // userid - hlstats
+        if (int.TryParse(token, out var uid))
             return Utilities.GetPlayers().FirstOrDefault(p => p?.IsValid == true && p.UserId == uid);
 
-        // userid
-        if (int.TryParse(token, out var uid2))
+        // #userid - sb
+        if (token[0] == '#' && int.TryParse(token.AsSpan(1), out var uid2))
             return Utilities.GetPlayers().FirstOrDefault(p => p?.IsValid == true && p.UserId == uid2);
 
         // SteamID64
@@ -206,64 +179,63 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         if (containsMatches.Count == 1) return containsMatches[0];
         if (containsMatches.Count > 1) return null;
 
-        return null;
+    return null;
+    }
+
+    private static IEnumerable<CCSPlayerController> GetPlayersList()
+    {
+        return Utilities.GetPlayers().Where(p => p?.IsValid == true && !p.IsBot).ToList();
     }
 
     public static void SendPrivateChat(CCSPlayerController player, string message)
     {
-        player.PrintToChat($"{message}");
+        Server.NextFrame(() => {
+            player.PrintToChat($"{message}");
+        });
     }
 
     public static void SendChatToAll(string message)
     {
-        var players = Utilities.GetPlayers();
-        foreach (var player in players)
-        {
-            if (player?.IsValid == true && player?.IsBot == false)
-            {
-                player.PrintToChat($"{message}");
-            }
-        }
+        var players = GetPlayersList();
+        Server.NextFrame(() => {
+            foreach (var player in players)
+                player.PrintToChat(message);
+        });
     }
 
-    public void BroadcastCenterMessage(string message, float durationInSeconds = 5.0f)
+    public static void SendHTMLToAll(string message, float duration = 5.0f)
+    {
+        var players = GetPlayersList();
+        float interval = 0.9f;
+        int repeats = (int)Math.Ceiling(duration / interval);
+        int count = 0;
+
+        new GameTimer(interval, () =>
+        {
+            if (++count > repeats) return;
+
+            foreach (var player in players)
+            {
+                if (player?.IsValid == true && !player.IsBot)
+                    player.PrintToCenterHtml(message);
+            }
+
+        }, TimerFlags.REPEAT | TimerFlags.STOP_ON_MAPCHANGE);
+
+    }
+
+    public void BroadcastCenterMessage(string message, int duration = 5)
     {
         string messageHTML = message.Replace("HLstatsZ","<font color='#FFFFFF'>HLstats</font><font color='#FF2A2A'>Z</font>");
-        string messageCHAT = message.Replace("HLstatsZ", "HLstats\x07Z\x01");
-
         string htmlContent = $"<font color='#FFFFFF'>{messageHTML}</font>";
-
-        var menu = new CenterHtmlMenu(htmlContent, this)
-        {
-            ExitButton = false
-        };
-
-        foreach (var p in Utilities.GetPlayers())
-        {
-            if (p?.IsValid == true && p?.IsBot == false)
-            {
-                if (!_menuManager._activeMenus.ContainsKey(p.SteamID))
-                {
-                    menu.Open(p);
-                } else {
-                    p.PrintToChat($"{messageCHAT}");
-                }
-            }
-        }
-
-        _ = new GameTimer(durationInSeconds, () =>
-        {
-            foreach (var p in Utilities.GetPlayers())
-            {
-                if (p?.IsValid == true && p?.IsBot == false && !_menuManager._activeMenus.ContainsKey(p.SteamID))
-                    MenuManager.CloseActiveMenu(p);
-            }
-        });
+        SendHTMLToAll(htmlContent);
     }
 
     public static void ShowHintMessage(CCSPlayerController player, string message)
     {
-        player.PrintToCenter($"{message}");
+                Server.NextFrame(() => {
+                    player.PrintToCenter($"{message}");
+                });
     }
 
     // ------------------ Listener -----------------
@@ -336,6 +308,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
     // --------------------- Console ---------------------
     [ConsoleCommand("hlx_sm_psay")]
+    [ConsoleCommand("hlx_sm_psay")]
     public void OnHlxSmPsayCommand(CCSPlayerController? _, CommandInfo command)
     {
         if (command.ArgCount < 2) return; // hlx_sm_psay "1" 1 "message"
@@ -356,7 +329,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             if (_lastPsayHash == hash) return;
 
             _lastPsayHash = hash;
-            DispatchHLXEvent("say", null, message);
+            SendChatToAll(message);
             return;
         }
 
@@ -368,24 +341,26 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         }
 
         // Broadcast to user
-        foreach (var userid in userIds)
-        {
-            var target = FindTarget(userid);
-            if (target == null || !target.IsValid) continue;
+        Server.NextFrame(() => {
+            foreach (var userid in userIds)
+            {
+                var target = FindTarget(userid);
+                if (target == null || !target.IsValid) continue;
 
-            var hash = $"{userid}:{message}";
-            if (_lastPsayHash == hash) continue;
+                var hash = $"{userid}:{message}";
+                if (_lastPsayHash == hash) continue;
+                _lastPsayHash = hash;
 
-            _lastPsayHash = hash;
-            DispatchHLXEvent("psay", target, message);
-        }
+                SendPrivateChat(target, message);
+            }
+        });
     }
 
     [ConsoleCommand("hlx_sm_csay")]
     public void OnHlxSmCsayCommand(CCSPlayerController? _, CommandInfo command)
     {
         var message = command.ArgByIndex(1);
-        DispatchHLXEvent("csay", null, message);
+        Instance?.BroadcastCenterMessage(message);
     }
 
     [ConsoleCommand("hlx_sm_hint")]
@@ -396,7 +371,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         var message = command.ArgByIndex(command.ArgCount - 1);
         var target  = FindTarget(userid);
         if (target == null || !target.IsValid) return;
-        DispatchHLXEvent("hint", target, message);
+        ShowHintMessage(target, message);
     }
 
     [ConsoleCommand("hlx_sm_msay")]
@@ -407,11 +382,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         var message = command.ArgByIndex(command.ArgCount - 1);
         var target  = FindTarget(userid);
         if (target == null || !target.IsValid) return;
-        DispatchHLXEvent("msay", target, message);
+        _menuManager.Open(target,message);
     }
 
     // --------------------- Menu ---------------------
-    private const int PollInterval = 6; // 4~80ms 6~120ms
+    private const int PollInterval = 6;
     private int _tickCounter = 0;
 
     private void OnTick()
@@ -476,12 +451,12 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         return HookResult.Continue;
     }
 
-    public HookResult OnBombAbortplant(EventBombAbortplant @event, GameEventInfo info)
+    public HookResult OnBombAbortdefuse(EventBombAbortdefuse @event, GameEventInfo info)
     {
         var player = @event.Userid;
         if (player == null || !player.IsValid) return HookResult.Continue;
 
-        _ = SendLog(player, "Aborted_Bomb", "triggered");
+        _ = SendLog(player, "Defuse_Aborted", "triggered");
         return HookResult.Continue;
     }
 
