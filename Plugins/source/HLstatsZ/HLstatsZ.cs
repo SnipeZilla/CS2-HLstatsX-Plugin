@@ -13,6 +13,7 @@ using CounterStrikeSharp.API.Modules.Events;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Timers;
 using GameTimer = CounterStrikeSharp.API.Modules.Timers.Timer; 
+using System.Runtime.InteropServices;
 using System.Net.Sockets;
 using System.Net;
 using System.Text;
@@ -38,10 +39,34 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     public string Trunc(string s, int max=20)
         => s.Length > max ? s.Substring(0, Math.Max(0, max - 3)) + "..." : s;
 
+    private struct WeaponStats
+    {
+        public int shots;
+        public int hits;
+        public int headshots;
+        public int damage;
+        public int kills;
+        public int deaths;
+    }
+
+    private struct HitgroupStats
+    {
+        public int head;
+        public int chest;
+        public int stomach;
+        public int leftarm;
+        public int rightarm;
+        public int leftleg;
+        public int rightleg;
+    }
+
+    private static readonly Dictionary<ulong, Dictionary<string, WeaponStats>> _Statsme  = new();
+    private static readonly Dictionary<ulong, Dictionary<string, HitgroupStats>> _Statsme2 = new();
+
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.6.0";
+    public override string ModuleVersion => "1.7.0";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -58,11 +83,14 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
         RegisterListener<Listeners.OnTick>(OnTick);
 
+        RegisterEventHandler<EventRoundEnd>(OnRoundEnd);
         RegisterEventHandler<EventRoundMvp>(OnRoundMvp);
         RegisterEventHandler<EventBombAbortdefuse>(OnBombAbortdefuse);
         RegisterEventHandler<EventBombDefused>(OnBombDefused);
         RegisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect);
         RegisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
+        RegisterEventHandler<EventWeaponFire>(OnWeaponFire);
+        RegisterEventHandler<EventPlayerHurt>(OnPlayerHurt);
 
         AddCommandListener(null, ComamndListenerHandler, HookMode.Pre);
 
@@ -83,11 +111,14 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     {
         RemoveListener<Listeners.OnTick>(OnTick);
 
+        DeregisterEventHandler<EventRoundEnd>(OnRoundEnd);
         DeregisterEventHandler<EventRoundMvp>(OnRoundMvp);
         DeregisterEventHandler<EventBombAbortdefuse>(OnBombAbortdefuse);
         DeregisterEventHandler<EventBombDefused>(OnBombDefused);
         DeregisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect);
         DeregisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
+        DeregisterEventHandler<EventWeaponFire>(OnWeaponFire);
+        DeregisterEventHandler<EventPlayerHurt>(OnPlayerHurt);
 
         RemoveCommandListener(null!, ComamndListenerHandler, HookMode.Pre);
     }
@@ -99,6 +130,151 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         socket.Connect("8.8.8.8", 65530); // Google's DNS
         var endPoint = socket.LocalEndPoint as IPEndPoint;
         return endPoint?.Address.ToString() ?? "127.0.0.1";
+    }
+
+    private static readonly Dictionary<string, string> WeaponCode = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["ak47"]          = "ak47",
+        ["aug"]           = "aug",
+        ["awp"]           = "awp",
+        ["famas"]         = "famas",
+        ["g3sg1"]         = "g3sg1",
+        ["galilar"]       = "galilar",
+        ["m4a1_silencer"] = "m4a1_silencer",
+        ["m4a1"]          = "m4a1",
+        ["scar20"]        = "scar20",
+        ["sg553"]         = "sg553",
+        ["ssg08"]         = "ssg08",
+
+        ["mac10"]         = "mac10",
+        ["mp5sd"]         = "mp5sd",
+        ["mp7"]           = "mp7",
+        ["mp9"]           = "mp9",
+        ["bizon"]         = "bizon",
+        ["p90"]           = "p90",
+        ["ump45"]         = "ump45",
+
+        ["mag7"]          = "mag7",
+        ["nova"]          = "nova",
+        ["sawedoff"]      = "sawedoff",
+        ["xm1014"]        = "xm1014",
+        ["m249"]          = "m249",
+        ["negev"]         = "negev",
+
+        ["cz75a"]         = "cz75a",
+        ["deagle"]        = "deagle",
+        ["elite"]         = "elite",
+        ["fiveseven"]     = "fiveseven",
+        ["glock"]         = "glock",
+        ["hkp2000"]       = "hkp2000",
+        ["p250"]          = "p250",
+        ["revolver"]      = "revolver",
+        ["tec9"]          = "tec9",
+        ["usp_silencer"]  = "usp_silencer",
+        ["usp"]           = "usp",
+    };
+
+    private static Dictionary<string, WeaponStats> GetStatsme(ulong steamId)
+    {
+        if (!_Statsme.TryGetValue(steamId, out var dict))
+        {
+            dict = new Dictionary<string, WeaponStats>(8);
+            _Statsme[steamId] = dict;
+        }
+        return dict;
+    }
+
+    private static Dictionary<string, HitgroupStats> GetStatsme2(ulong steamId)
+    {
+        if (!_Statsme2.TryGetValue(steamId, out var dict))
+        {
+            dict = new Dictionary<string, HitgroupStats>(8);
+            _Statsme2[steamId] = dict;
+        }
+        return dict;
+    }
+
+    private static ref WeaponStats GetWeaponStats(Dictionary<string, WeaponStats> dict, string weaponCode)
+    {
+        return ref CollectionsMarshal.GetValueRefOrAddDefault(dict, weaponCode, out _);
+    }
+
+    private static ref HitgroupStats GetHitgroupStats(Dictionary<string, HitgroupStats> dict, string weaponCode)
+    {
+        return ref CollectionsMarshal.GetValueRefOrAddDefault(dict, weaponCode, out _);
+    }
+
+    private void SendStatsme(CCSPlayerController player, string statsVerb, Dictionary<string, string> props)
+    {
+        var sb = new StringBuilder();
+        sb.Append(statsVerb);
+        sb.Append('"');
+
+        foreach (var kv in props)
+        {
+            sb.Append(" (");
+            sb.Append(kv.Key);
+            sb.Append(" \"");
+            sb.Append(kv.Value);
+            sb.Append("\")");
+        }
+
+        _ = SendLog(player, sb.ToString(), "triggered");
+    }
+
+    private void FlushPlayerWeaponStats(CCSPlayerController player)
+    {
+        if (player == null || !player.IsValid || player.IsBot)
+            return;
+
+        var steamId = player.SteamID;
+
+        if (_Statsme.TryGetValue(steamId, out var dict))
+        {
+            foreach (var kv in dict)
+            {
+                var weaponCode = kv.Key;
+                var s = kv.Value;
+
+                var props = new Dictionary<string, string>
+                {
+                    ["weapon"]    = weaponCode,
+                    ["shots"]     = s.shots.ToString(),
+                    ["hits"]      = s.hits.ToString(),
+                    ["headshots"] = s.headshots.ToString(),
+                    ["damage"]    = s.damage.ToString(),
+                    ["kills"]     = s.kills.ToString(),
+                    ["deaths"]    = s.deaths.ToString()
+                };
+
+                SendStatsme(player, "weaponstats", props);
+            }
+            _Statsme.Remove(steamId);
+        }
+
+        if (_Statsme2.TryGetValue(steamId, out var hdict))
+        {
+            foreach (var kv in hdict)
+            {
+                var weaponCode = kv.Key;
+                var hs = kv.Value;
+
+                var props2 = new Dictionary<string, string>
+                {
+                    ["weapon"]   = weaponCode,
+                    ["head"]     = hs.head.ToString(),
+                    ["chest"]    = hs.chest.ToString(),
+                    ["stomach"]  = hs.stomach.ToString(),
+                    ["leftarm"]  = hs.leftarm.ToString(),
+                    ["rightarm"] = hs.rightarm.ToString(),
+                    ["leftleg"]  = hs.leftleg.ToString(),
+                    ["rightleg"] = hs.rightleg.ToString()
+                };
+
+                SendStatsme(player, "weaponstats2", props2);
+            }
+            _Statsme2.Remove(steamId);
+        }
     }
 
     public async Task SendLog(CCSPlayerController player, string message, string verb)
@@ -429,6 +605,17 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     }
 
     // ------------------ Event Handler ------------------
+    public HookResult OnRoundEnd(EventRoundEnd @event, GameEventInfo info)
+    {
+        var players = GetPlayersList();
+
+        foreach (var player in players)
+            FlushPlayerWeaponStats(player);
+
+        return HookResult.Continue;
+
+    }
+
     public HookResult OnRoundMvp(EventRoundMvp @event, GameEventInfo info)
     {
         var reason = @event.Reason;
@@ -473,15 +660,126 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     {
         var player = @event.Userid;
         if (player != null && player.IsValid)
+        {
             _menuManager.DestroyMenu(player);
+            FlushPlayerWeaponStats(player);
+        }
+
+        return HookResult.Continue;
+    }
+
+    public HookResult OnWeaponFire(EventWeaponFire @event, GameEventInfo info)
+    {
+        var attacker = @event.Userid;
+        if (attacker == null || !attacker.IsValid || attacker.IsBot)
+            return HookResult.Continue;
+
+        var steamId = attacker.SteamID;
+
+        var weapon = @event.Weapon;
+
+        if (string.IsNullOrEmpty(weapon))
+            return HookResult.Continue;
+
+        if (weapon.StartsWith("weapon_"))
+            weapon = weapon.Substring(7);
+
+        if (!WeaponCode.TryGetValue(weapon, out var wCode))
+            return HookResult.Continue;
+
+        var dict = GetStatsme(steamId);
+        ref var stats = ref GetWeaponStats(dict, wCode);
+        stats.shots++;
+
+        return HookResult.Continue;
+    }
+
+    public HookResult OnPlayerHurt(EventPlayerHurt @event, GameEventInfo info)
+    {
+        var attacker = @event.Attacker;
+        var victim   = @event.Userid;
+
+        if (attacker == null || !attacker.IsValid || attacker.IsBot)
+            return HookResult.Continue;
+        if (victim == null || !victim.IsValid)
+            return HookResult.Continue;
+
+        var steamId = attacker.SteamID;
+        var weapon  = @event.Weapon;
+
+        if (string.IsNullOrEmpty(weapon))
+            return HookResult.Continue;
+
+        if (weapon.StartsWith("weapon_"))
+            weapon = weapon.Substring(7);
+
+        if (!WeaponCode.TryGetValue(weapon, out var wCode))
+            return HookResult.Continue;
+
+        var dmg = @event.DmgHealth;
+        var hg  = @event.Hitgroup;
+
+        // ---- STATSME ----
+        var dict = GetStatsme(steamId);
+        ref var stats = ref GetWeaponStats(dict, wCode);
+        stats.hits++;
+        stats.damage += dmg;
+        if (hg == 1)
+            stats.headshots++;
+
+        // ---- STATSME2 ----
+        var hdict = GetStatsme2(steamId);
+        ref var hstats = ref GetHitgroupStats(hdict, wCode);
+
+        switch (hg)
+        {
+            case 1: hstats.head++;     break;
+            case 2: hstats.chest++;    break;
+            case 3: hstats.stomach++;  break;
+            case 4: hstats.leftarm++;  break;
+            case 5: hstats.rightarm++; break;
+            case 6: hstats.leftleg++;  break;
+            case 7: hstats.rightleg++; break;
+        }
+
         return HookResult.Continue;
     }
 
     public HookResult OnPlayerDeath(EventPlayerDeath @event, GameEventInfo info)
     {
-        var player = @event.Userid;
-        if (player != null && player.IsValid)
-            _menuManager.DestroyMenu(player);
+        var attacker = @event.Attacker;
+        var victim   = @event.Userid;
+        var weapon  = @event.Weapon;
+
+        if (victim != null && victim.IsValid)
+            _menuManager.DestroyMenu(victim);
+
+        if (string.IsNullOrEmpty(weapon))
+            return HookResult.Continue;
+
+        if (weapon.StartsWith("weapon_"))
+            weapon = weapon.Substring(7);
+
+        if (!WeaponCode.TryGetValue(weapon, out var wCode))
+            return HookResult.Continue;
+
+        if (attacker != null && attacker.IsValid && !attacker.IsBot)
+        {
+            var steamId = attacker.SteamID;
+            var dict = GetStatsme(steamId);
+            ref var stats = ref GetWeaponStats(dict, wCode);
+            stats.kills++;
+        }
+
+        if (victim != null && victim.IsValid && !victim.IsBot)
+        {
+            var steamId = victim.SteamID;
+            var dict = GetStatsme(steamId);
+            ref var stats = ref GetWeaponStats(dict, wCode);
+            stats.deaths++;
+            FlushPlayerWeaponStats(victim);
+        }
+
         return HookResult.Continue;
     }
 
