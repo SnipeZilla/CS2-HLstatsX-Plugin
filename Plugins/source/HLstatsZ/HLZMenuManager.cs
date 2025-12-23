@@ -6,7 +6,8 @@ using CounterStrikeSharp.API.Modules.Menu;
 using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Entities.Constants;
 using CounterStrikeSharp.API.Modules.Memory;
-
+using CounterStrikeSharp.API.Modules.Timers;
+using GameTickTimer = CounterStrikeSharp.API.Modules.Timers.Timer;
 namespace HLstatsZ;
 
 public class HLZMenuManager
@@ -15,7 +16,9 @@ public class HLZMenuManager
 
     private readonly Dictionary<ulong, int> _menuPages = new();
     private readonly Dictionary<ulong, int> _selectedIndex = new();
+    private GameTickTimer? _menuTimer;
     public readonly Dictionary<ulong, PlayerButtons> _lastButtons = new();
+    private const int MenuPollTicks = 6;
     public readonly Dictionary<ulong, (CCSPlayerController Player, CenterHtmlMenu Menu)> _activeMenus = new();
     private readonly Dictionary<ulong, List<(string Text, Action<CCSPlayerController> Callback)>> _pageOptions = new();
     private readonly Dictionary<ulong, Stack<(string Content, int Page, Dictionary<string, Action<CCSPlayerController>>? Callbacks)>> _menuHistory = new();
@@ -27,6 +30,55 @@ public class HLZMenuManager
     public HLZMenuManager(BasePlugin plugin)
     {
         _plugin = plugin;
+    }
+
+    private void StartMenuInputTimer(CCSPlayerController player)
+    {
+
+
+        if (_menuTimer != null) return;
+
+        _menuTimer = _plugin.AddTickTimer(MenuPollTicks, () =>
+        {
+
+            if (_activeMenus.Count == 0 && _menuTimer != null)
+            {
+                _menuTimer.Kill();
+                _menuTimer = null;
+                return;
+            }
+
+            foreach (var kvp in _activeMenus.ToList())
+            {
+                var steamId = kvp.Key;
+                var (player, menu) = kvp.Value;
+
+                if (player == null || !player.IsValid)
+                {
+                    DestroyMenu(player!);
+                    return;
+                }
+
+                var current = player.Buttons;
+                var last = _lastButtons.TryGetValue(steamId, out var prev) ? prev : 0;
+
+                if (current.HasFlag(PlayerButtons.Forward)  && !last.HasFlag(PlayerButtons.Forward))
+                    HandleWasdPress(player, "W");
+                if (current.HasFlag(PlayerButtons.Back)     && !last.HasFlag(PlayerButtons.Back))
+                    HandleWasdPress(player, "S");
+                if (current.HasFlag(PlayerButtons.Moveleft) && !last.HasFlag(PlayerButtons.Moveleft))
+                    HandleWasdPress(player, "A");
+                if (current.HasFlag(PlayerButtons.Moveright)&& !last.HasFlag(PlayerButtons.Moveright))
+                    HandleWasdPress(player, "D");
+                if (current.HasFlag(PlayerButtons.Use)      && !last.HasFlag(PlayerButtons.Use))
+                    HandleWasdPress(player, "E");
+
+                _lastButtons[steamId] = current;
+
+            }
+
+        }, TimerFlags.REPEAT);
+
     }
 
     public void HandleWasdPress(CCSPlayerController player, string key)
@@ -226,7 +278,10 @@ public class HLZMenuManager
 
         var menu = new CenterHtmlMenu(main, _plugin) { ExitButton = false };
         _activeMenus[steamId] = (player, menu);
+
         menu.Open(player);
+        StartMenuInputTimer(player);
+
         if (heading.Contains("Cast Vote", StringComparison.OrdinalIgnoreCase))
         {
             player.UnFreeze();
@@ -240,6 +295,7 @@ public class HLZMenuManager
         if (player == null || !player.IsValid) return;
 
         player.UnFreeze();
+
         if (_activeMenus.TryGetValue(player.SteamID, out var menu))
         {
             MenuManager.CloseActiveMenu(player);
@@ -398,7 +454,6 @@ public class HLZMenuBuilder
             {
                 page++;
                 content += $"\n->{page + 1} - {_title}";
-                //index = 1;
             }
 
             var (label, cb) = _items[i];

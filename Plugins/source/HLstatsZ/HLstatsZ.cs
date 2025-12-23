@@ -66,7 +66,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.7.0";
+    public override string ModuleVersion => "1.7.1";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -80,8 +80,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     public override void Load(bool hotReload)
     {
         Instance = this;
-
-        RegisterListener<Listeners.OnTick>(OnTick);
 
         RegisterEventHandler<EventRoundEnd>(OnRoundEnd);
         RegisterEventHandler<EventRoundMvp>(OnRoundMvp);
@@ -109,7 +107,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
     public override void Unload(bool hotReload)
     {
-        RemoveListener<Listeners.OnTick>(OnTick);
 
         DeregisterEventHandler<EventRoundEnd>(OnRoundEnd);
         DeregisterEventHandler<EventRoundMvp>(OnRoundMvp);
@@ -277,17 +274,25 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         }
     }
 
-    public async Task SendLog(CCSPlayerController player, string message, string verb)
+    public async Task SendLog(CCSPlayerController? player, string message, string? verb)
     {
-        if (!player.IsValid) return;
-        var name    = player.PlayerName;
-        var userid  = player.UserId;
-        var steamid = (uint)(player.SteamID - 76561197960265728);
-        var team    = player.TeamNum switch {2 => "TERRORIST", 3 => "CT", _ => "UNASSIGNED"};
-
+        var logLine = "";
         var serverAddr = Config.ServerAddr;
+ 
+        if (player?.IsValid == true && !string.IsNullOrWhiteSpace(verb))
+        {
+            var name    = player.PlayerName;
+            var userid  = player.UserId;
+            var steamid = (uint)(player.SteamID - 76561197960265728);
+            var team    = player.TeamNum switch {2 => "TERRORIST", 3 => "CT", _ => "UNASSIGNED"};
 
-        var logLine = $"L {DateTime.Now:MM/dd/yyyy - HH:mm:ss}: \"{name}<{userid}><[U:1:{steamid}]><{team}>\" {verb} \"{message}\"";
+            logLine = $"L {DateTime.Now:MM/dd/yyyy - HH:mm:ss}: \"{name}<{userid}><[U:1:{steamid}]><{team}>\" {verb} \"{message}\"";
+
+        } else if (string.IsNullOrWhiteSpace(verb)) {
+
+            logLine = $"L {DateTime.Now:MM/dd/yyyy - HH:mm:ss}: {message}";
+
+        } else { return; }
 
         try
         {
@@ -382,7 +387,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     public static void SendHTMLToAll(string message, float duration = 5.0f)
     {
         var players = GetPlayersList();
-        float interval = 0.9f;
+        float interval = 0.0625f;
         int repeats = (int)Math.Ceiling(duration / interval);
         int count = 0;
 
@@ -392,8 +397,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
             foreach (var player in players)
             {
-                if (player?.IsValid == true && !player.IsBot)
-                    player.PrintToCenterHtml(message);
+                if (player?.IsValid == true)
+                   player.PrintToCenterHtml(message,5);
             }
 
         }, TimerFlags.REPEAT | TimerFlags.STOP_ON_MAPCHANGE);
@@ -421,7 +426,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             return HookResult.Continue;
 
         bool MenuIsOpen = _menuManager._activeMenus.ContainsKey(player.SteamID);
-        var command = info.ArgByIndex(0).ToLower();
+        var command = info.ArgByIndex(0).ToLower().Trim();
 
         if (MenuIsOpen && command == "single_player_pause")
             Instance!._menuManager.DestroyMenu(player);
@@ -483,7 +488,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     }
 
     // --------------------- Console ---------------------
-    [ConsoleCommand("hlx_sm_psay")]
     [ConsoleCommand("hlx_sm_psay")]
     public void OnHlxSmPsayCommand(CCSPlayerController? _, CommandInfo command)
     {
@@ -561,56 +565,16 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         _menuManager.Open(target,message);
     }
 
-    // --------------------- Menu ---------------------
-    private const int PollInterval = 6;
-    private int _tickCounter = 0;
-
-    private void OnTick()
-   {
-        if (_menuManager._activeMenus.Count == 0) return;
-        if (++_tickCounter % PollInterval != 0) return;
-        _tickCounter=0;
-
-        foreach (var kvp in _menuManager._activeMenus.ToList())
-        {
-            var steamId = kvp.Key;
-            var (player, menu) = kvp.Value;
-
-            if (player == null || !player.IsValid)
-            {
-                _menuManager.DestroyMenu(player!);
-                continue;
-            }
-            var current = player.Buttons;
-            var last = _menuManager._lastButtons.TryGetValue(steamId, out var prev) ? prev : PlayerButtons.Cancel;
-
-            if (current.HasFlag(PlayerButtons.Forward) && !last.HasFlag(PlayerButtons.Forward))
-                _menuManager.HandleWasdPress(player, "W");
-
-            if (current.HasFlag(PlayerButtons.Back) && !last.HasFlag(PlayerButtons.Back))
-                _menuManager.HandleWasdPress(player, "S");
-
-            if (current.HasFlag(PlayerButtons.Moveleft) && !last.HasFlag(PlayerButtons.Moveleft))
-                _menuManager.HandleWasdPress(player, "A");
-
-            if (current.HasFlag(PlayerButtons.Moveright) && !last.HasFlag(PlayerButtons.Moveright))
-                _menuManager.HandleWasdPress(player, "D");
-
-            if (current.HasFlag(PlayerButtons.Use) && !last.HasFlag(PlayerButtons.Use))
-                _menuManager.HandleWasdPress(player, "E");
-
-            _menuManager._lastButtons[steamId] = current;
-
-        }
-    }
-
     // ------------------ Event Handler ------------------
     public HookResult OnRoundEnd(EventRoundEnd @event, GameEventInfo info)
     {
         var players = GetPlayersList();
 
         foreach (var player in players)
+        {
             FlushPlayerWeaponStats(player);
+            _menuManager.DestroyMenu(player);
+        }
 
         return HookResult.Continue;
 

@@ -8,13 +8,13 @@
     ".NETCoreApp,Version=v8.0": {
       "HLstatsZ/1.0.0": {
         "dependencies": {
-          "CounterStrikeSharp.API": "1.0.347"
+          "CounterStrikeSharp.API": "1.0.353"
         },
         "runtime": {
           "HLstatsZ.dll": {}
         }
       },
-      "CounterStrikeSharp.API/1.0.347": {
+      "CounterStrikeSharp.API/1.0.353": {
         "dependencies": {
           "McMaster.NETCore.Plugins": "1.4.0",
           "Microsoft.CSharp": "4.7.0",
@@ -32,8 +32,8 @@
         },
         "runtime": {
           "lib/net8.0/CounterStrikeSharp.API.dll": {
-            "assemblyVersion": "1.0.347.0",
-            "fileVersion": "1.0.347.0"
+            "assemblyVersion": "1.0.353.0",
+            "fileVersion": "1.0.353.0"
           }
         }
       },
@@ -548,12 +548,12 @@
       "serviceable": false,
       "sha512": ""
     },
-    "CounterStrikeSharp.API/1.0.347": {
+    "CounterStrikeSharp.API/1.0.353": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-KRYzFCT+k1vnnC941p3pZjc5qw+YKOCLlzGkUhm+DVSFWnbnL14j89S9SZbQ4+UJVtObnxGUJ/65bAUXlEJ57A==",
-      "path": "counterstrikesharp.api/1.0.347",
-      "hashPath": "counterstrikesharp.api.1.0.347.nupkg.sha512"
+      "sha512": "sha512-E1yyC5PRjA7RJxOEaw4w7CHLpu46ZmJCIXWBPSpSpbLcvpiVLdXnB3GeUAzvb3ku1/s0zy54d5iVUu5P8SO5Yw==",
+      "path": "counterstrikesharp.api/1.0.353",
+      "hashPath": "counterstrikesharp.api.1.0.353.nupkg.sha512"
     },
     "McMaster.NETCore.Plugins/1.4.0": {
       "type": "package",
