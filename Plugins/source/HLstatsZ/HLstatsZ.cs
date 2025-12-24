@@ -66,7 +66,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.7.1";
+    public override string ModuleVersion => "1.7.2";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -370,18 +370,16 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
     public static void SendPrivateChat(CCSPlayerController player, string message)
     {
-        Server.NextFrame(() => {
-            player.PrintToChat($"{message}");
-        });
+        player.PrintToChat($"{message}");
     }
 
     public static void SendChatToAll(string message)
     {
         var players = GetPlayersList();
-        Server.NextFrame(() => {
-            foreach (var player in players)
-                player.PrintToChat(message);
-        });
+
+        foreach (var player in players)
+            player.PrintToChat(message);
+
     }
 
     public static void SendHTMLToAll(string message, float duration = 5.0f)
@@ -414,9 +412,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
     public static void ShowHintMessage(CCSPlayerController player, string message)
     {
-                Server.NextFrame(() => {
-                    player.PrintToCenter($"{message}");
-                });
+        player.PrintToCenter($"{message}");
     }
 
     // ------------------ Listener -----------------
@@ -521,19 +517,17 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         }
 
         // Broadcast to user
-        Server.NextFrame(() => {
-            foreach (var userid in userIds)
-            {
-                var target = FindTarget(userid);
-                if (target == null || !target.IsValid) continue;
+        foreach (var userid in userIds)
+        {
+            var target = FindTarget(userid);
+            if (target == null || !target.IsValid) continue;
 
-                var hash = $"{userid}:{message}";
-                if (_lastPsayHash == hash) continue;
-                _lastPsayHash = hash;
+            var hash = $"{userid}:{message}";
+            if (_lastPsayHash == hash) continue;
+            _lastPsayHash = hash;
 
-                SendPrivateChat(target, message);
-            }
-        });
+            SendPrivateChat(target, message);
+        }
     }
 
     [ConsoleCommand("hlx_sm_csay")]
