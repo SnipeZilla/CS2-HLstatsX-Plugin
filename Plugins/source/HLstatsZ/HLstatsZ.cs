@@ -66,7 +66,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.7.2";
+    public override string ModuleVersion => "1.7.3";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -276,11 +276,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
     public async Task SendLog(CCSPlayerController? player, string message, string? verb)
     {
-        var logLine = "";
-        var serverAddr = Config.ServerAddr;
- 
+        string logLine;
+
         if (player?.IsValid == true && !string.IsNullOrWhiteSpace(verb))
         {
+
             var name    = player.PlayerName;
             var userid  = player.UserId;
             var steamid = (uint)(player.SteamID - 76561197960265728);
@@ -296,16 +296,21 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
         try
         {
-            if (!httpClient.DefaultRequestHeaders.Contains("X-Server-Addr"))
-                httpClient.DefaultRequestHeaders.Add("X-Server-Addr", serverAddr);
 
-            var content = new StringContent(logLine, Encoding.UTF8, "text/plain");
-            var response = await httpClient.PostAsync($"http://{Config.Log_Address}:{Config.Log_Port}/log", content);
+            using var cts     = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"http://{Config.Log_Address}:{Config.Log_Port}")
+                                {
+                                    Content = new StringContent(logLine, Encoding.UTF8, "text/plain")
+                                };
+
+            request.Headers.Add("X-Server-Addr", Config.ServerAddr);
+            var response = await httpClient.SendAsync(request, cts.Token);
 
             if (!response.IsSuccessStatusCode)
             {
                 Instance?.Logger.LogInformation($"[HLstatsZ] HTTP log send failed: {response.StatusCode} - {response.ReasonPhrase}");
             }
+
         }
         catch (Exception ex)
         {
