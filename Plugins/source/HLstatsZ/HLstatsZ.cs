@@ -13,6 +13,7 @@ using CounterStrikeSharp.API.Modules.Events;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Timers;
 using GameTimer = CounterStrikeSharp.API.Modules.Timers.Timer; 
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Collections.Concurrent;
 using System.Net.Sockets;
@@ -71,7 +72,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.7.4";
+    public override string ModuleVersion => "1.7.5";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -288,12 +289,25 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         private readonly CancellationTokenSource _cts = new();
         private readonly Task _worker;
         private readonly HttpClient _http;
+
         private readonly string _url;
         private readonly string _serverAddr;
 
-        private const int MaxBatchSize = 10;
-        private const int RetryCount = 3;
-        private const int DelayBetweenBatchesMs = 50;
+        // --- Adaptive parameters ---
+        private int _batchSize = 10;
+        private int _delayMs = 10;
+        private const int MaxBatchSize = 200;
+        private const int MinBatchSize = 1;
+        private const int MaxDelayMs = 200;
+        private const int MinDelayMs = 1;
+
+        // --- Thresholds ---
+        private const int HighLatencyMs = 250;
+        private const int CriticalLatencyMs = 500;
+        private const int LowLatencyMs = 80;
+
+        private const int HighQueueDepth = 5000;
+        private const int CriticalQueueDepth = 20000;
 
         public LogDispatcher(string logAddress, int logPort, string serverAddr)
         {
@@ -321,16 +335,20 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
                 {
                     if (_queue.IsEmpty)
                     {
-                        await Task.Delay(DelayBetweenBatchesMs, _cts.Token);
+                        await Task.Delay(5, _cts.Token);
                         continue;
                     }
 
-                    var batch = new List<string>(MaxBatchSize);
+                    var batch = new List<string>(_batchSize);
 
-                    while (batch.Count < MaxBatchSize && _queue.TryDequeue(out var line))
+                    while (batch.Count < _batchSize && _queue.TryDequeue(out var line))
                         batch.Add(line);
 
-                    await SendBatchAsync(batch);
+                    var latency = await SendBatchAsync(batch);
+
+                    AdjustBehavior(latency, _queue.Count);
+
+                    await Task.Delay(_delayMs, _cts.Token);
                 }
                 catch (OperationCanceledException)
                 {
@@ -338,46 +356,109 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
                 }
                 catch (Exception ex)
                 {
-                    Instance?.Logger.LogInformation($"[HLstatsZ] LogDispatcher error: {ex.Message}");
+                    Instance?.Logger.LogInformation($"[HLstatsZ] Log dispatcher error: {ex.Message}");
                 }
             }
         }
 
-        private async Task SendBatchAsync(List<string> batch)
+        private static bool IsRetryable(Exception ex)
         {
-            if (batch.Count == 0)
-                return;
+            if (ex is HttpRequestException hre && hre.InnerException is HttpIOException ioex &&
+                ioex.Message.Contains("response ended prematurely", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (ex is HttpRequestException hre2 && hre2.InnerException is IOException)
+                return true;
+
+            if (ex is TaskCanceledException) // timeout
+                return true;
+
+            return false;
+        }
+
+        private async Task<HttpResponseMessage?> SendOnceAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token)
+                             .ConfigureAwait(false);
+        }
+
+        private async Task<long> SendBatchAsync(List<string> batch)
+        {
+            if (batch.Count == 0) return 0;
 
             var payload = string.Join("\n", batch);
-            var content = new StringContent(payload, Encoding.UTF8, "text/plain");
 
-            for (int attempt = 1; attempt <= RetryCount; attempt++)
+            var sw = Stopwatch.StartNew();
+            try
             {
-                try
+                for (int attempt = 0; attempt < 3; attempt++)
                 {
-                    using var request = new HttpRequestMessage(HttpMethod.Post, _url)
+                    _cts.Token.ThrowIfCancellationRequested();
+
+                    using var request = new HttpRequestMessage(HttpMethod.Post, _url);
+                    request.Headers.TryAddWithoutValidation("X-Server-Addr", _serverAddr);
+                    request.Content = new StringContent(payload, Encoding.UTF8, "text/plain");
+
+                    try
                     {
-                        Content = content
-                    };
+                        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, _cts.Token).ConfigureAwait(false);
 
-                    request.Headers.Add("X-Server-Addr", _serverAddr);
+                        _ = await response.Content.ReadAsByteArrayAsync(_cts.Token).ConfigureAwait(false);
 
-                    var response = await _http.SendAsync(request, _cts.Token);
+                        sw.Stop();
 
-                    if (response.IsSuccessStatusCode)
-                        return;
+                        if (!response.IsSuccessStatusCode)
+                            Instance?.Logger.LogInformation($"[HLstatsZ] Log Batch send failed: {response.StatusCode}");
 
-                    Instance?.Logger.LogInformation($"[HLstatsZ] Log send failed (attempt {attempt}): {response.StatusCode}");
+                        return sw.ElapsedMilliseconds;
+                    }
+                    catch (Exception ex) when (attempt < 2 && IsRetryable(ex))
+                    {
+                        var backoffMs = (int)(50 * Math.Pow(2, attempt)) + Random.Shared.Next(0, 50);
+                        await Task.Delay(backoffMs, _cts.Token).ConfigureAwait(false);
+                    }
                 }
-                catch (Exception ex)
-                {
-                    Instance?.Logger.LogInformation($"[HLstatsZ] Logs send exception (attempt {attempt}): {ex.Message}");
-                }
-
-                await Task.Delay(200);
+            }
+            catch (Exception ex)
+            {
+                sw.Stop();
+                Instance?.Logger.LogInformation($"[HLstatsZ] Log Batch send exception: {ex}");
             }
 
-            Instance?.Logger.LogInformation($"[HLstatsZ] Dropping {batch.Count} logs after {RetryCount} failed attempts");
+            return sw.ElapsedMilliseconds;
+        }
+
+        private void AdjustBehavior(long latencyMs, int queueDepth)
+        {
+            // --- Latency-based ---
+            if (latencyMs > CriticalLatencyMs)
+            {
+                _batchSize = Math.Max(MinBatchSize, _batchSize / 2);
+                _delayMs = Math.Min(MaxDelayMs, _delayMs + 20);
+            }
+            else if (latencyMs > HighLatencyMs)
+            {
+                _batchSize = Math.Max(MinBatchSize, _batchSize - 2);
+                _delayMs = Math.Min(MaxDelayMs, _delayMs + 5);
+            }
+            else if (latencyMs < LowLatencyMs)
+            {
+                _batchSize = Math.Min(MaxBatchSize, _batchSize + 2);
+                _delayMs = Math.Max(MinDelayMs, _delayMs - 2);
+            }
+
+            // --- Queue-depth  ---
+            if (queueDepth > CriticalQueueDepth)
+            {
+                _batchSize = Math.Min(MaxBatchSize, _batchSize + 20);
+                _delayMs = Math.Min(MaxDelayMs, _delayMs + 20);
+            }
+            else if (queueDepth > HighQueueDepth)
+            {
+                _batchSize = Math.Min(MaxBatchSize, _batchSize + 10);
+                _delayMs = Math.Min(MaxDelayMs, _delayMs + 10);
+            }
+
         }
 
         public void Dispose()
