@@ -3,5 +3,6 @@
   "Log_Port": 27500,
   "BroadcastAll": 0,
   "ServerAddr":"",
+  "HLZ_Prefix":"",
   "Version": 1
 }

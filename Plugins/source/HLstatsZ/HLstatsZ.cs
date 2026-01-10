@@ -28,6 +28,7 @@ public class HLstatsZConfig : IBasePluginConfig
     [JsonPropertyName("Log_Port")] public int Log_Port { get; set; } = 27500;
     [JsonPropertyName("BroadcastAll")] public int BroadcastAll { get; set; } = 0;
     [JsonPropertyName("ServerAddr")] public string ServerAddr { get; set; } = "";
+    [JsonPropertyName("HLZ_Prefix")] public string HLZ_Prefix { get; set; } = "";
     public int Version { get; set; } = 1;
 }
 
@@ -44,6 +45,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     public static LogDispatcher? LogQueue;
 
     private static GameTimer? _centerHTML;
+
+    public static string HLZ_Prefix = "";
 
     private struct WeaponStats
     {
@@ -72,13 +75,14 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.7.5";
+    public override string ModuleVersion => "1.8.0";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
     {
         Config = config;
         Console.WriteLine($"[HLstatsZ] Config loaded: {Config.Log_Address}:{Config.Log_Port}");
+
     }
 
     private HLZMenuManager _menuManager = null!;
@@ -100,16 +104,25 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
         _menuManager = new HLZMenuManager(this);
 
-        var serverAddr = Config.ServerAddr;
-        if (string.IsNullOrWhiteSpace(serverAddr))
+        if (!string.IsNullOrWhiteSpace(Config.HLZ_Prefix))
         {
-            var hostPort = ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 27015;
-            var serverIP = GetLocalIPAddress();
-            serverAddr = $"{serverIP}:{hostPort}";
-            Config.ServerAddr=serverAddr;
+            HLZ_Prefix = Colors(Config.HLZ_Prefix.Trim())+"\x01 ";
         }
 
-        LogQueue = new LogDispatcher(Config.Log_Address, Config.Log_Port, Config.ServerAddr);
+        if (hotReload)
+        {
+            var serverAddr = Config.ServerAddr;
+            if (string.IsNullOrWhiteSpace(serverAddr))
+            {
+                var hostPort = ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 27015;
+                var serverIP = GetLocalIPAddress();
+                serverAddr = $"{serverIP}:{hostPort}";
+                Config.ServerAddr=serverAddr;
+            }
+
+            LogQueue = new LogDispatcher(Config.Log_Address, Config.Log_Port, Config.ServerAddr);
+        }
+
     }
 
     public override void Unload(bool hotReload)
@@ -127,6 +140,42 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         RemoveCommandListener(null!, ComamndListenerHandler, HookMode.Pre);
 
         LogQueue?.Dispose();
+    }
+
+    private static readonly Regex ColorRegex = new(@"\{(\w+)\}|\[\[(\w+)\]\]", RegexOptions.Compiled);
+
+    private static readonly Dictionary<string, char> ColorCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["default"]     = '\x01',
+        ["white"]       = '\x01',
+        ["darkred"]     = '\x02',
+        ["green"]       = '\x04',
+        ["lightyellow"] = '\x09',
+        ["yellow"]      = '\x09',
+        ["lightblue"]   = '\x0B',
+        ["blue"]        = '\x0B',
+        ["darkblue"]    = '\x0C',
+        ["olive"]       = '\x05',
+        ["lime"]        = '\x06',
+        ["red"]         = '\x07',
+        ["lightpurple"] = '\x03',
+        ["purple"]      = '\x0E',
+        ["magenta"]     = '\x0E',
+        ["grey"]        = '\x08',
+        ["orange"]      = '\x10',
+        ["gold"]        = '\x10',
+        ["silver"]      = '\x0A',
+        ["bluegrey"]    = '\x0A',
+        ["lightred"]    = '\x0F',
+    };
+
+    public static string Colors(string input)
+    {
+        return ColorRegex.Replace(input, m =>
+        {
+            var key = m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value;
+            return ColorCodes.TryGetValue(key, out var code) ? code.ToString() : m.Value;
+        });
     }
 
     // ------------------ Core Logic ------------------
@@ -559,7 +608,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         var players = GetPlayersList();
 
         foreach (var player in players)
-            player.PrintToChat(message);
+            player.PrintToChat($"{message}");
     }
 
     public static void SendHTMLToAll(string message, float duration = 5.0f)
@@ -693,7 +742,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             if (_lastPsayHash == hash) return;
 
             _lastPsayHash = hash;
-            SendChatToAll(message);
+            SendChatToAll(HLZ_Prefix + message);
             return;
         }
 
@@ -714,7 +763,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             if (_lastPsayHash == hash) continue;
             _lastPsayHash = hash;
 
-            SendPrivateChat(target, message);
+            SendPrivateChat(target, HLZ_Prefix + message);
         }
     }
 
