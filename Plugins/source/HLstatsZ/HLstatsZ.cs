@@ -75,14 +75,12 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.8.0";
+    public override string ModuleVersion => "1.8.1";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
     {
         Config = config;
-        Console.WriteLine($"[HLstatsZ] Config loaded: {Config.Log_Address}:{Config.Log_Port}");
-
     }
 
     private HLZMenuManager _menuManager = null!;
@@ -106,22 +104,17 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
         if (!string.IsNullOrWhiteSpace(Config.HLZ_Prefix))
         {
-            HLZ_Prefix = Colors(Config.HLZ_Prefix.Trim())+"\x01 ";
+            HLZ_Prefix = Colors(" "+Config.HLZ_Prefix.Trim()+"\x01 ");
         }
 
-        if (hotReload)
+        if (string.IsNullOrWhiteSpace(Config.ServerAddr))
         {
-            var serverAddr = Config.ServerAddr;
-            if (string.IsNullOrWhiteSpace(serverAddr))
-            {
-                var hostPort = ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 27015;
-                var serverIP = GetLocalIPAddress();
-                serverAddr = $"{serverIP}:{hostPort}";
-                Config.ServerAddr=serverAddr;
-            }
+            var hostPort = ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 27015;
+            var serverIP = ConVar.Find("ip")?.StringValue ?? GetLocalIPAddress();
+            Config.ServerAddr = $"{serverIP}:{hostPort}";
+        }
 
             LogQueue = new LogDispatcher(Config.Log_Address, Config.Log_Port, Config.ServerAddr);
-        }
 
     }
 
@@ -142,7 +135,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         LogQueue?.Dispose();
     }
 
-    private static readonly Regex ColorRegex = new(@"\{(\w+)\}|\[\[(\w+)\]\]", RegexOptions.Compiled);
 
     private static readonly Dictionary<string, char> ColorCodes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -168,15 +160,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         ["bluegrey"]    = '\x0A',
         ["lightred"]    = '\x0F',
     };
-
-    public static string Colors(string input)
-    {
-        return ColorRegex.Replace(input, m =>
-        {
-            var key = m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value;
-            return ColorCodes.TryGetValue(key, out var code) ? code.ToString() : m.Value;
-        });
-    }
 
     // ------------------ Core Logic ------------------
     public static string GetLocalIPAddress()
@@ -330,6 +313,17 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
             }
             _Statsme2.Remove(steamId);
         }
+    }
+
+    private static readonly Regex ColorRegex = new(@"\{([a-zA-Z]+)\}", RegexOptions.Compiled);
+
+    public static string Colors(string input)
+    {
+        return ColorRegex.Replace(input, m =>
+        {
+            var key = m.Groups[1].Value;
+            return ColorCodes.TryGetValue(key, out var code) ? code.ToString() : m.Value;
+        });
     }
 
     public sealed class LogDispatcher : IDisposable
@@ -600,7 +594,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
     public static void SendPrivateChat(CCSPlayerController player, string message)
     {
-        player.PrintToChat($"{message}");
+        player.PrintToChat(message);
     }
 
     public static void SendChatToAll(string message)
@@ -608,18 +602,19 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         var players = GetPlayersList();
 
         foreach (var player in players)
-            player.PrintToChat($"{message}");
+            player.PrintToChat(message);
+
     }
 
-    public static void SendHTMLToAll(string message, float duration = 5.0f)
+    public static void SendHTMLToAll(string message)
     {
         if (_centerHTML != null) return;
 
         var players = GetPlayersList();
 
-        int ticks = 1;
+        int ticks = 2;
         float interval = ticks / 64f;
-        int repeats = (int)Math.Ceiling(duration / interval);
+        int repeats = (int)Math.Ceiling(5 / interval);
         int count = 0;
 
         _centerHTML = Instance?.AddTickTimer(ticks, () =>
@@ -649,7 +644,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
 
     public static void ShowHintMessage(CCSPlayerController player, string message)
     {
-        player.PrintToCenter($"{message}");
+        player.PrintToCenter(message);
     }
 
     // ------------------ Listener -----------------
