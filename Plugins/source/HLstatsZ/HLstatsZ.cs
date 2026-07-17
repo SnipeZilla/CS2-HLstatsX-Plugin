@@ -75,7 +75,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.9";
+    public override string ModuleVersion => "1.9.1";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -181,7 +181,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         ["m4a1_silencer"] = "m4a1_silencer",
         ["m4a1"]          = "m4a1",
         ["scar20"]        = "scar20",
-        ["sg553"]         = "sg553",
+        ["sg556"]         = "sg556",
         ["ssg08"]         = "ssg08",
 
         ["mac10"]         = "mac10",
