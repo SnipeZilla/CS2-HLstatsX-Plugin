@@ -75,7 +75,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
     private string? _lastPsayHash;
 
     public override string ModuleName => "HLstatsZ";
-    public override string ModuleVersion => "1.9.1";
+    public override string ModuleVersion => "1.10.0";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZConfig config)
@@ -789,6 +789,15 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZConfig>
         var target  = FindTarget(userid);
         if (target == null || !target.IsValid) return;
         _menuManager.Open(target,message);
+    }
+
+    [ConsoleCommand("hlx_sm_swap")]
+    public void OnHlxSmSwapCommand(CCSPlayerController? _, CommandInfo command)
+    {
+        if (!int.TryParse(command.ArgByIndex(1), out var userid)) return;
+        var target  = FindTarget(userid);
+        if (target == null || !target.IsValid) return;
+        target.ChangeTeam((CsTeam)target.TeamNum == CsTeam.Terrorist ? CsTeam.CounterTerrorist : CsTeam.Terrorist);
     }
 
     // ------------------ Event Handler ------------------
